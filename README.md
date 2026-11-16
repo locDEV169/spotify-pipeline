@@ -1,6 +1,6 @@
 # Spotify Charts → Web API → ReccoBeats Pipeline
 
-**Status:** Spec / architecture only (greenfield). Runtime package not scaffolded yet.  
+**Status:** Scaffold ready — package tree + CLI stubs (`NotImplementedError`). Pipeline logic not implemented yet.  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS.
 
 Local **batch** data pipeline design that ingests Spotify chart rankings, enriches track/artist metadata via the Spotify Web API (Client Credentials), pulls audio-feature metrics from **ReccoBeats**, and lands data in a **Bronze → Silver → Gold** (medallion) layout.
@@ -59,41 +59,41 @@ Charts public/v0 ──► Bronze ──► extract IDs ──┬──► Spoti
 
 Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6** were missing (new-release lag). The pipeline must retain those ranks with `features_found=false` and report coverage explicitly.
 
-## Planned stack
+## Stack (scaffold)
 
-| Layer | Choice (MVP) |
-|-------|----------------|
+| Layer | Choice |
+|-------|--------|
 | Language | Python 3.12+ |
 | HTTP | `httpx` |
 | Config | `pydantic-settings` + `.env` |
-| Storage | filesystem Bronze + SQLite Silver/Gold |
-| CLI | `typer` or `argparse` (TBD at scaffold) |
-| Tests | `pytest` + recorded fixtures |
-| Packaging | `uv` or `pip` + `pyproject.toml` (TBD at scaffold) |
+| Storage | filesystem Bronze + SQLite Silver/Gold (stdlib) |
+| CLI | `typer` |
+| Tests | `pytest` (+ recorded fixtures later) |
+| Packaging | `pip` + `venv` + `pyproject.toml` |
 
-Target layout (from SPEC): `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/`.
+Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/` (stubs raise `NotImplementedError` until implemented per SPEC).
 
-## Commands (target design — not runnable yet)
+## Dev setup
 
 ```bash
-# Setup (after scaffold)
 python -m venv .venv
 source .venv/Scripts/activate   # Windows Git Bash
 pip install -e ".[dev]"
+cp .env.example .env            # optional until live Spotify calls
+pytest -q
+```
 
-# Full pipeline for one watermark
+Scaffold smoke tests should pass. Pipeline commands are registered but **not implemented** yet:
+
+```bash
 python -m spotify_pipeline run \
   --chart-date 2026-11-12 \
   --chart-type weekly_top_songs \
   --country global
-
-# Offline / fixture mode (CI)
-python -m spotify_pipeline run --offline
-
-pytest -q
+# → NotImplementedError until C9–C14 are built
 ```
 
-Expected env vars (to be documented in `.env.example` when scaffolded):
+Env vars (see `.env.example`):
 
 - `SPOTIFY_CLIENT_ID`
 - `SPOTIFY_CLIENT_SECRET`

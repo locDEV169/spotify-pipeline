@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spotify-pipeline"
+version = "0.1.0"
+description = "Spotify Charts → Web API → ReccoBeats batch pipeline (learning demo)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "httpx",
+  "pydantic-settings",
+  "typer",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[project.scripts]
+spotify-pipeline = "spotify_pipeline.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
