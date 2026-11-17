@@ -73,6 +73,21 @@ Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6*
 
 Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/` (stubs raise `NotImplementedError` until implemented per SPEC).
 
+
+## Connect DB supabase
+```bash
+source .venv/Scripts/activate
+python scripts/check_supabase.py
+```
+
+## Migrate music SQL → Supabase (schema `music` only)
+```bash
+# Requires SUPABASE_DB_URL in .env (Dashboard → Database → Connect)
+python scripts/apply_music_ddl.py
+python scripts/apply_music_ddl.py docs/sql/music_schema.sql   # optional path
+```
+Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
+
 ## Dev setup
 
 ```bash
@@ -95,8 +110,8 @@ python -m spotify_pipeline run \
 
 Env vars (see `.env.example`):
 
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
+- `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`
+- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (server-only; never commit — rotate if leaked)
 
 ## Risks
 

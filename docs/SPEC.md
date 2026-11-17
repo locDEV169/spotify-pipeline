@@ -444,7 +444,7 @@ CI: offline tests only.
 ## Open Questions (blocking / high impact)
 
 1. Spotify Client ID mode: Extended Quota vs Dev Mode old vs Dev Mode new? → batch vs `/{id}`.
-2. On that Client ID, are `track.popularity`, `artist.genres`, `followers`, `artist.popularity` still returned?
+2. On that Client ID, are `track.popularity`, `artist.genres`, `followers`, `artist.popularity` still returned? → **Answered for current Dev Mode app (field notes 17/11/2026):** absent / always null on this Client ID; Gold popularity scatter **not feasible** here. Other quota modes still ⚠️.
 3. Accept Charts `auth/v0` daily (Bearer user) for streams despite ToS risk, or stay weekly `public/v0` + `streams=NULL`?
 4. If no `auth/v0`: stay weekly-only, or revive kworb fallback?
 5. Scheduler / secret store / object store / BI product choices.
@@ -472,6 +472,10 @@ CI: offline tests only.
 |------|--------|
 | 2026-11-16 | Initial SPEC distilled from Notion research §1–§8 + BA component mapping. Locked stack = Charts + Web API + ReccoBeats (v2). |
 | 2026-11-17 | Bổ sung mục "Lưu trữ bằng Supabase" (đề xuất của mình, 17/11/2026, Asia/Bangkok). Các mục phía trên không bị sửa hay xóa. |
+| 2026-11-17 | Field notes: live probe Charts / Web API / ReccoBeats; trạng thái schema Supabase (chỉ weather); DDL deltas (`run_id`/`source`, indexes); config Supabase đã có trong code. **Không** chạy DDL; **không** đụng bảng weather. |
+| 2026-11-17 | Quyết định: bảng nhạc nằm schema Postgres **`music`** (tách khỏi weather/`public`). Chỉ sync `docs/SPEC.md` (không Notion). DDL vẫn **chưa chạy**. |
+| 2026-11-17 | Thêm `docs/sql/music_schema.sql` + `scripts/apply_music_ddl.py` (schema `music.*`, không đụng weather). Apply cần `SUPABASE_DB_URL` — **chưa apply** nếu URI chưa có trong `.env`. |
+| 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/apply_music_ddl.py`. |
 
 ---
 
@@ -725,31 +729,31 @@ WHERE t.features_found IS TRUE;
 
 Có thể đổi các view trên thành `MATERIALIZED VIEW` rồi `REFRESH` sau mỗi watermark nếu báo cáo đọc nhiều. SCD2 lịch sử hạng: MVP có thể query trực tiếp `fact_chart` (append-only theo watermark); bảng SCD2 formal vẫn là nice-to-have như mục Gold analytics.
 
-### Cấu hình (`.env` — đề xuất của mình, chưa sửa `.env.example`)
+### Cấu hình (`.env`)
 
-Thêm vào `.env` local, **không commit**, không dán key vào chat:
+**Đã có trong code (field notes 17/11/2026):** `Settings` trong `config.py` đọc `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`; `.env.example` đã document placeholders; `get_supabase_client()` + `scripts/check_supabase.py` dùng URL + service_role.
+
+Thêm vào `.env` local, **không commit**, không dán key vào chat / SPEC:
 
 ```bash
-# Cách 1 — kết nối thẳng Postgres (phù hợp psycopg)
+# Cách 1 — kết nối thẳng Postgres (phù hợp psycopg) — optional
 SUPABASE_DB_URL=postgresql://USER:PASSWORD@HOST:PORT/postgres
 
-# Cách 2 — URL project + service_role (phù hợp supabase-py / Storage API)
+# Cách 2 — URL project + service_role (phù hợp supabase-py / Storage API) — đang dùng cho smoke
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-Dùng **một trong hai cách** (hoặc cả hai nếu vừa SQL vừa Storage API). Lấy giá trị từ Supabase Dashboard (connection string / API keys) — không ghi giá trị thật vào repo.
+Dùng **một trong hai cách** (hoặc cả hai nếu vừa SQL vừa Storage API). Lấy giá trị từ Supabase Dashboard — không ghi giá trị thật vào repo.
 
-**`SUPABASE_SERVICE_ROLE_KEY` chỉ dùng phía server/script.** Key này bỏ qua RLS; không đưa vào client, frontend, hay commit.
+**`SUPABASE_SERVICE_ROLE_KEY` chỉ dùng phía server/script.** Key này bỏ qua RLS; không đưa vào client, frontend, hay commit. Nếu key từng lộ trong chat: **rotate** trên Dashboard rồi cập nhật `.env` (backup cũ có thể nằm dưới `.backup-auth-20261117/`).
 
-### Thư viện Python (chỉ đề xuất — không sửa `pyproject.toml` trong lần này)
+### Thư viện Python
 
-| Lựa chọn | Khi nào dùng |
-|----------|----------------|
-| `psycopg[binary]` | Kết nối Postgres qua `SUPABASE_DB_URL`, chạy DDL / upsert / view bằng SQL thuần. Khớp stack hiện tại (`httpx`, không ORM). |
-| `supabase-py` | Khi muốn upload Bronze lên Storage và/hoặc gọi PostgREST thay vì SQL trực tiếp. |
-
-Chưa thêm dependency vào `pyproject.toml`. Khi triển khai mới cài một (hoặc cả hai) rồi cập nhật `.env.example` (không commit secret).
+| Lựa chọn | Trạng thái |
+|----------|------------|
+| `supabase` (`supabase-py`) | **Đã thêm** vào `pyproject.toml` — `create_client` / Storage / PostgREST. |
+| `psycopg[binary]` | Chưa thêm — dùng khi nối thẳng `SUPABASE_DB_URL` để chạy DDL / upsert SQL thuần. |
 
 ### Giới hạn gói Free (đã đối chiếu docs, 17/11/2026)
 
@@ -770,6 +774,97 @@ Lượng data demo (≈ 50 hàng chart/tuần + metadata + features) thường n
 
 ### Việc cố ý chưa làm trong lần append này
 
-- Không sửa Assumptions, Tech Stack, Data model, hay cây thư mục phía trên.
-- Không sửa `pyproject.toml`, `.env`, `.env.example`, hay code.
-- Chưa tạo project Supabase, chưa chạy DDL, chưa đổi pipeline từ SQLite sang Postgres.
+- Không sửa Assumptions, Tech Stack, Data model gốc, hay cây thư mục phía trên (Assumptions #4 SQLite vẫn là MVP đã viết).
+- **Chưa chạy DDL** tạo bảng nhạc trên Supabase; **không** đụng 3 bảng weather.
+- Chưa đổi pipeline runtime từ SQLite/local Bronze sang Postgres/Storage làm store chính.
+
+### Quan sát live — field notes (17/11/2026, Asia/Bangkok)
+
+> Ghi nhận từ probe data thật + kiểm tra schema Supabase. **Không** coi là DDL đã apply.
+
+#### Schema project hiện tại
+
+| Object | Vai trò |
+|--------|---------|
+| `public.weather_snapshots`, `public.lifestyle_insights`, `public.current_weather` | Bảng thời tiết có sẵn — **không sửa / không drop** |
+| Schema **`music`** (`music.fact_chart`, `music.dim_*`, …) | **Chưa tạo** — đây là chỗ dành cho pipeline nhạc |
+
+**Decision (locked 17/11/2026):** tạo toàn bộ object nhạc trong schema **`music`**, cùng Supabase project nhưng **tách** khỏi weather/`public`. Không đặt `fact_chart` / `dim_*` vào `public`.
+
+#### DDL là gì (trong ngữ cảnh repo này)?
+
+**DDL** (*Data Definition Language*) = câu SQL **định nghĩa cấu trúc** DB, ví dụ:
+
+- `CREATE SCHEMA` / `CREATE TABLE` / `CREATE INDEX` / `CREATE VIEW`
+
+**Không** phải DDL (**DML**): `INSERT` / `UPDATE` / `SELECT` dữ liệu chart hay weather.
+
+→ “Chưa chạy DDL” = mới ghi trong SPEC, **chưa** tạo schema/bảng/index thật trên Supabase. “Chạy DDL” = execute các `CREATE …` đó (vẫn **không** đụng bảng weather).
+
+#### Charts `public/v0` (live)
+
+| Có trong payload | Ghi chú thiết kế |
+|------------------|------------------|
+| `currentRank` → `rank` | Bắt buộc cho fact |
+| `previousRank` → `prev_rank` | Nullable nếu thiếu |
+| `entryStatus` → `entry_status` | Nullable |
+| `trackUri` → `track_id` | Parse Base-62 |
+| tên bài / nghệ sĩ (trên chart payload) | Có thể mirror vào dim; nguồn chuẩn metadata vẫn Web API |
+| **Không có streams** | `streams` luôn NULL trên happy path `public/v0` |
+| `peakRank`, `appearancesOnChart` | Có thể xuất hiện nhưng live = 0 / rỗng → cột **nullable**; **không** diễn giải `0` như peak thật |
+
+#### Spotify Web API (Client ID hiện tại — Dev Mode)
+
+| Có | Không có (để NULL) |
+|----|---------------------|
+| `name`, `duration_ms`, `explicit`, album (`id`/`name`/`release_date`/`precision`), `external_ids.isrc` | `track.popularity`, `artist.genres`, `followers`, `artist.popularity` |
+
+→ Cột popularity / genres / followers vẫn giữ trong DDL nhưng **luôn trống** trên app này. Biểu đồ Gold “popularity vs features” **không làm được** cho đến khi Client ID khác trả field (vẫn ⚠️ Extended Quota).
+
+#### ReccoBeats (live)
+
+- Đủ **11** audio features (khớp cột `dim_track`).
+- `id` trong response = **ReccoBeats UUID** (`reccobeats_uuid`), **không** phải Spotify track id.
+- Nối dữ liệu: **luôn lưu Spotify track id đã request**; dùng `isrc` làm khóa phụ khi có. Không dựa vào ReccoBeats `id` như thể Spotify id.
+
+### DDL deltas sau field notes (đề xuất — chưa chạy)
+
+Áp dụng khi **tạo** object nhạc trên **cùng project**, schema **`music`**. Chỉ `CREATE … IF NOT EXISTS` — **cấm** `DROP`/`ALTER`/`TRUNCATE` mọi `public.weather_*`.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS music;
+```
+
+Mọi bảng / view / index nhạc qualify `music.*` (ví dụ `music.fact_chart`, `music.dim_track`, `music.gold_movers`). Khi dùng supabase-py/PostgREST: expose schema `music` trong Dashboard API settings (ngoài `public`) nếu cần query qua client.
+
+1. **Lineage:** thêm `run_id text` (hoặc `uuid`) + `source text` trên `music.raw_*` và (tuỳ chọn) `music.fact_chart` / `music.dim_track`.
+2. **Charts extras (nullable):** `peak_rank`, `appearances_on_chart` — nullable; không diễn giải `0` như peak thật.
+3. **`music.bridge_track_artist`:** giữ (một track nhiều artist).
+4. **Indexes (đề xuất):**
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_fact_chart_track_id ON music.fact_chart (track_id);
+CREATE INDEX IF NOT EXISTS idx_fact_chart_rank ON music.fact_chart (chart_date, chart_type, country, rank);
+CREATE INDEX IF NOT EXISTS idx_dim_track_isrc ON music.dim_track (isrc);
+CREATE INDEX IF NOT EXISTS idx_bridge_track_artist_artist_id ON music.bridge_track_artist (artist_id);
+```
+
+5. **ReccoBeats raw:** `music.raw_reccobeats` nên có `spotify_track_ids text[]` (hoặc jsonb) = id đã gửi trong `?ids=`.
+
+**Script apply (17/11/2026):**
+
+| File | Vai trò |
+|------|---------|
+| [`docs/sql/music_schema.sql`](sql/music_schema.sql) | DDL đầy đủ: `CREATE SCHEMA music` + tables/indexes/views `music.*` (+ `run_id`/`source`, `peak_rank` nullable, `spotify_track_ids`, Gold views) |
+| [`scripts/apply_music_ddl.py`](../scripts/apply_music_ddl.py) | Chạy SQL qua `SUPABASE_DB_URL` (`pg8000`); abort nếu SQL đụng weather |
+
+```bash
+# 1) Thêm SUPABASE_DB_URL vào .env (Dashboard → Database → Connect → URI)
+# 2) Apply
+python scripts/apply_music_ddl.py
+# hoặc paste music_schema.sql vào Dashboard → SQL Editor → Run
+```
+
+**Trạng thái (17/11/2026):** `python scripts/apply_music_ddl.py` đã **exit 0** — schema `music` có 10 objects (`raw_charts`, `raw_spotify`, `raw_reccobeats`, `fact_chart`, `dim_track`, `dim_artist`, `bridge_track_artist`, `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`). Weather `public` vẫn còn đủ 3 bảng. Idempotent: chạy lại script an toàn (`IF NOT EXISTS`). **Không** Notion. Rotate `service_role` vẫn do user trên Dashboard nếu key từng lộ.
+
+> PostgREST/supabase-py: nếu query `music.*` qua API client, thêm schema `music` vào **Exposed schemas** trong Dashboard API settings.

@@ -12,6 +12,8 @@ dependencies = [
   "httpx",
   "pydantic-settings",
   "typer",
+  "supabase",
+  "pg8000",
 ]
 
 [project.optional-dependencies]
