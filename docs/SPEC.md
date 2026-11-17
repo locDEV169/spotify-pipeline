@@ -471,3 +471,305 @@ CI: offline tests only.
 | Date | Change |
 |------|--------|
 | 2026-11-16 | Initial SPEC distilled from Notion research §1–§8 + BA component mapping. Locked stack = Charts + Web API + ReccoBeats (v2). |
+| 2026-11-17 | Bổ sung mục "Lưu trữ bằng Supabase" (đề xuất của mình, 17/11/2026, Asia/Bangkok). Các mục phía trên không bị sửa hay xóa. |
+
+---
+
+## Lưu trữ bằng Supabase (đề xuất của mình)
+
+> **Đề xuất của mình** — 17/11/2026 (Asia/Bangkok). Mục này được **append** vào cuối file; không sửa các mục phía trên (kể cả Assumptions #4: Bronze local filesystem + SQLite Silver/Gold vẫn là MVP đã viết). Đây là phương án lưu trữ thay thế / bổ sung, **chưa triển khai**. Các trường và tên bảng dưới đây bám [Data model (Silver)](#data-model-silver) và [Gold analytics (MVP)](#gold-analytics-mvp) đã có trong file này.
+
+### Vì sao dùng Supabase
+
+Supabase là Postgres được quản lý, kèm **Storage** để chứa file. Phù hợp pipeline demo này vì lượng dữ liệu nhỏ: Charts `public/v0` weekly Global top 50 chỉ khoảng **50 hàng/tuần**, cộng metadata Web API và audio features ReccoBeats thì chỉ cỡ vài MB — nằm trong hạn mức gói Free (xem mục giới hạn bên dưới, đã đối chiếu docs).
+
+Có thể dùng connection string Postgres (SQL thuần, upsert, view) cho Silver/Gold, và dùng Storage cho JSON thô ở Bronze, cùng một project.
+
+### Ánh xạ lớp Medallion
+
+| Lớp | Cách lưu trên Supabase (đề xuất của mình) | Ghi chú |
+|-----|-------------------------------------------|---------|
+| **Bronze** | (A) bucket Storage, path theo nguồn/ngày; hoặc (B) bảng `raw_*` với cột `jsonb` + `ingested_at` | Giữ payload thô Charts / Web API / ReccoBeats. Không làm sạch nghiệp vụ ở lớp này. |
+| **Silver** | Bảng Postgres: `fact_chart`, `dim_track`, `dim_artist` (đúng tên trong Data model ở trên) | Upsert idempotent (`ON CONFLICT`). Join Silver vẫn là **LEFT JOIN** — không drop hàng chart khi thiếu feature / genre / popularity. |
+| **Gold** | `VIEW` hoặc `MATERIALIZED VIEW` | Coverage, movers, mood; SCD2 formal là nice-to-have (có thể tính từ `fact_chart` append-only). |
+
+**Path Bronze trên Storage (đề xuất của mình, không có trong file gốc):**
+
+```text
+bronze/charts/public_v0/chart_date={YYYY-MM-DD}/{country}_{chart_type}.json
+bronze/spotify/tracks/{YYYY-MM-DD}/{track_id}.json
+bronze/spotify/artists/{YYYY-MM-DD}/{artist_id}.json
+bronze/reccobeats/audio-features/{YYYY-MM-DD}/{batch_or_track_id}.json
+```
+
+Mọi object / hàng raw đều có `ingested_at`. Có thể dùng **cả hai** (A) và (B): file trên Storage là bản gốc, bảng `raw_*` tiện truy vấn.
+
+### DDL đề xuất (Silver + raw + Gold)
+
+Chỉ gồm trường **đang có trong Data model / API contracts** của file này: Charts `public/v0` có `rank` (`currentRank`), `prev_rank` (`previousRank`), `trackUri` → `track_id`, `chart_date` — **không có số streams** (`streams` để NULL). Web API Dev Mode (Feb 2026): `track_popularity`, `followers`, `artist_popularity` **nullable** (có thể absent). `isrc` vẫn dùng được (reverted 03/2026). Audio features lấy từ ReccoBeats, gắn `source_features = 'reccobeats'`.
+
+```sql
+-- ===== Bronze (phương án B: jsonb) — đề xuất của mình =====
+CREATE TABLE IF NOT EXISTS raw_charts (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source        text NOT NULL,          -- ví dụ: charts_public_v0
+    chart_date    date,
+    chart_type    text,
+    country       text,
+    payload       jsonb NOT NULL,
+    ingested_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS raw_spotify (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    entity        text NOT NULL,          -- track | artist
+    spotify_id    text,
+    payload       jsonb NOT NULL,
+    ingested_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS raw_reccobeats (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    endpoint      text NOT NULL,          -- audio-features | track
+    payload       jsonb NOT NULL,
+    ingested_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- ===== Silver — bám Data model đã có =====
+CREATE TABLE IF NOT EXISTS fact_chart (
+    chart_date    date NOT NULL,
+    chart_type    text NOT NULL,          -- ví dụ: weekly_top_songs
+    country       text NOT NULL,          -- ví dụ: global
+    track_id      text NOT NULL,          -- từ trackUri (spotify:track:{id})
+    rank          integer NOT NULL CHECK (rank >= 1),
+    prev_rank     integer CHECK (prev_rank >= 1),
+    streams       bigint CHECK (streams >= 0),  -- NULL trên public/v0
+    entry_status  text,
+    ingested_at   timestamptz NOT NULL,
+    PRIMARY KEY (chart_date, chart_type, country, track_id)
+);
+
+CREATE TABLE IF NOT EXISTS dim_track (
+    track_id                   text PRIMARY KEY,
+    track_name                 text,
+    duration_ms                integer,
+    explicit                   boolean,
+    album_id                   text,
+    album_name                 text,
+    release_date               text,       -- giữ text vì có release_date_precision (year/month/day)
+    release_date_precision     text,
+    isrc                       text,
+    track_popularity           integer,    -- nullable / có thể absent trên Dev Mode
+    reccobeats_uuid            text,
+    href                       text,
+    acousticness               double precision,
+    danceability               double precision,
+    energy                     double precision,
+    instrumentalness           double precision,
+    liveness                   double precision,
+    speechiness                double precision,
+    valence                    double precision,
+    loudness                   double precision,  -- dB, không buộc 0–1
+    tempo                      double precision,
+    key                        integer,
+    mode                       integer,
+    features_found             boolean NOT NULL DEFAULT false,
+    features_fetched_at        timestamptz,
+    source_features            text,       -- const 'reccobeats'
+    updated_at                 timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS dim_artist (
+    artist_id           text PRIMARY KEY,
+    artist_name         text,
+    genres              jsonb,            -- deprecated; có thể rỗng / absent
+    followers           bigint,           -- có thể absent trên Dev Mode mới
+    artist_popularity   integer,          -- có thể absent trên Dev Mode mới
+    updated_at          timestamptz
+);
+
+-- Bảng liên kết track–artist: đề xuất của mình, không có trong Data model gốc
+-- (file gốc đã có dim_artist nhưng chưa ghi bảng nối).
+CREATE TABLE IF NOT EXISTS bridge_track_artist (
+    track_id          text NOT NULL REFERENCES dim_track (track_id),
+    artist_id         text NOT NULL REFERENCES dim_artist (artist_id),
+    artist_position   integer NOT NULL DEFAULT 0,
+    PRIMARY KEY (track_id, artist_id)
+);
+```
+
+**Upsert idempotent (đề xuất của mình):**
+
+```sql
+INSERT INTO fact_chart (
+    chart_date, chart_type, country, track_id,
+    rank, prev_rank, streams, entry_status, ingested_at
+) VALUES (
+    %(chart_date)s, %(chart_type)s, %(country)s, %(track_id)s,
+    %(rank)s, %(prev_rank)s, %(streams)s, %(entry_status)s, now()
+)
+ON CONFLICT (chart_date, chart_type, country, track_id) DO UPDATE SET
+    rank         = EXCLUDED.rank,
+    prev_rank    = EXCLUDED.prev_rank,
+    streams      = EXCLUDED.streams,
+    entry_status = EXCLUDED.entry_status,
+    ingested_at  = EXCLUDED.ingested_at;
+
+INSERT INTO dim_track (
+    track_id, track_name, duration_ms, explicit,
+    album_id, album_name, release_date, release_date_precision,
+    isrc, track_popularity, reccobeats_uuid, href,
+    acousticness, danceability, energy, instrumentalness,
+    liveness, speechiness, valence, loudness, tempo, key, mode,
+    features_found, features_fetched_at, source_features, updated_at
+) VALUES (
+    %(track_id)s, %(track_name)s, %(duration_ms)s, %(explicit)s,
+    %(album_id)s, %(album_name)s, %(release_date)s, %(release_date_precision)s,
+    %(isrc)s, %(track_popularity)s, %(reccobeats_uuid)s, %(href)s,
+    %(acousticness)s, %(danceability)s, %(energy)s, %(instrumentalness)s,
+    %(liveness)s, %(speechiness)s, %(valence)s, %(loudness)s, %(tempo)s, %(key)s, %(mode)s,
+    %(features_found)s, %(features_fetched_at)s, 'reccobeats', now()
+)
+ON CONFLICT (track_id) DO UPDATE SET
+    track_name               = EXCLUDED.track_name,
+    duration_ms              = EXCLUDED.duration_ms,
+    explicit                 = EXCLUDED.explicit,
+    album_id                 = EXCLUDED.album_id,
+    album_name               = EXCLUDED.album_name,
+    release_date             = EXCLUDED.release_date,
+    release_date_precision   = EXCLUDED.release_date_precision,
+    isrc                     = COALESCE(EXCLUDED.isrc, dim_track.isrc),
+    track_popularity         = EXCLUDED.track_popularity,
+    reccobeats_uuid          = COALESCE(EXCLUDED.reccobeats_uuid, dim_track.reccobeats_uuid),
+    href                     = COALESCE(EXCLUDED.href, dim_track.href),
+    acousticness             = COALESCE(EXCLUDED.acousticness, dim_track.acousticness),
+    danceability             = COALESCE(EXCLUDED.danceability, dim_track.danceability),
+    energy                   = COALESCE(EXCLUDED.energy, dim_track.energy),
+    instrumentalness         = COALESCE(EXCLUDED.instrumentalness, dim_track.instrumentalness),
+    liveness                 = COALESCE(EXCLUDED.liveness, dim_track.liveness),
+    speechiness              = COALESCE(EXCLUDED.speechiness, dim_track.speechiness),
+    valence                  = COALESCE(EXCLUDED.valence, dim_track.valence),
+    loudness                 = COALESCE(EXCLUDED.loudness, dim_track.loudness),
+    tempo                    = COALESCE(EXCLUDED.tempo, dim_track.tempo),
+    key                      = COALESCE(EXCLUDED.key, dim_track.key),
+    mode                     = COALESCE(EXCLUDED.mode, dim_track.mode),
+    features_found           = EXCLUDED.features_found,
+    features_fetched_at      = COALESCE(EXCLUDED.features_fetched_at, dim_track.features_fetched_at),
+    source_features          = COALESCE(EXCLUDED.source_features, dim_track.source_features),
+    updated_at               = EXCLUDED.updated_at;
+
+INSERT INTO dim_artist (
+    artist_id, artist_name, genres, followers, artist_popularity, updated_at
+) VALUES (
+    %(artist_id)s, %(artist_name)s, %(genres)s, %(followers)s, %(artist_popularity)s, now()
+)
+ON CONFLICT (artist_id) DO UPDATE SET
+    artist_name         = EXCLUDED.artist_name,
+    genres              = EXCLUDED.genres,
+    followers           = EXCLUDED.followers,
+    artist_popularity   = EXCLUDED.artist_popularity,
+    updated_at          = EXCLUDED.updated_at;
+```
+
+`ON CONFLICT` của `dim_track` dùng `COALESCE` cho audio features / ISRC để lần upsert metadata (chưa có ReccoBeats) không ghi đè mất feature đã backfill, và ngược lại.
+
+**Gold — view (đề xuất của mình), bám Gold analytics (MVP):**
+
+```sql
+CREATE OR REPLACE VIEW gold_feature_coverage AS
+SELECT
+    f.chart_date,
+    f.chart_type,
+    f.country,
+    count(*) AS chart_rows,
+    count(*) FILTER (WHERE t.features_found) AS features_found_rows,
+    round(
+        100.0 * count(*) FILTER (WHERE t.features_found) / nullif(count(*), 0),
+        2
+    ) AS features_found_pct
+FROM fact_chart AS f
+LEFT JOIN dim_track AS t ON t.track_id = f.track_id
+GROUP BY f.chart_date, f.chart_type, f.country;
+
+CREATE OR REPLACE VIEW gold_movers AS
+SELECT
+    f.chart_date,
+    f.chart_type,
+    f.country,
+    f.track_id,
+    t.track_name,
+    f.rank,
+    f.prev_rank,
+    (f.prev_rank - f.rank) AS rank_delta,  -- dương = tăng hạng
+    f.streams                              -- NULL trên public/v0
+FROM fact_chart AS f
+LEFT JOIN dim_track AS t ON t.track_id = f.track_id
+WHERE f.prev_rank IS NOT NULL;
+
+CREATE OR REPLACE VIEW gold_mood_segments AS
+SELECT
+    f.chart_date,
+    f.chart_type,
+    f.country,
+    f.track_id,
+    t.track_name,
+    t.energy,
+    t.valence,
+    t.tempo,
+    t.source_features
+FROM fact_chart AS f
+INNER JOIN dim_track AS t ON t.track_id = f.track_id
+WHERE t.features_found IS TRUE;
+-- Ngưỡng phân vùng energy × valence để trong comment code khi triển khai (SPEC: document thresholds in code comments).
+```
+
+Có thể đổi các view trên thành `MATERIALIZED VIEW` rồi `REFRESH` sau mỗi watermark nếu báo cáo đọc nhiều. SCD2 lịch sử hạng: MVP có thể query trực tiếp `fact_chart` (append-only theo watermark); bảng SCD2 formal vẫn là nice-to-have như mục Gold analytics.
+
+### Cấu hình (`.env` — đề xuất của mình, chưa sửa `.env.example`)
+
+Thêm vào `.env` local, **không commit**, không dán key vào chat:
+
+```bash
+# Cách 1 — kết nối thẳng Postgres (phù hợp psycopg)
+SUPABASE_DB_URL=postgresql://USER:PASSWORD@HOST:PORT/postgres
+
+# Cách 2 — URL project + service_role (phù hợp supabase-py / Storage API)
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+Dùng **một trong hai cách** (hoặc cả hai nếu vừa SQL vừa Storage API). Lấy giá trị từ Supabase Dashboard (connection string / API keys) — không ghi giá trị thật vào repo.
+
+**`SUPABASE_SERVICE_ROLE_KEY` chỉ dùng phía server/script.** Key này bỏ qua RLS; không đưa vào client, frontend, hay commit.
+
+### Thư viện Python (chỉ đề xuất — không sửa `pyproject.toml` trong lần này)
+
+| Lựa chọn | Khi nào dùng |
+|----------|----------------|
+| `psycopg[binary]` | Kết nối Postgres qua `SUPABASE_DB_URL`, chạy DDL / upsert / view bằng SQL thuần. Khớp stack hiện tại (`httpx`, không ORM). |
+| `supabase-py` | Khi muốn upload Bronze lên Storage và/hoặc gọi PostgREST thay vì SQL trực tiếp. |
+
+Chưa thêm dependency vào `pyproject.toml`. Khi triển khai mới cài một (hoặc cả hai) rồi cập nhật `.env.example` (không commit secret).
+
+### Giới hạn gói Free (đã đối chiếu docs, 17/11/2026)
+
+Đã đọc [Supabase Pricing](https://supabase.com/pricing) và [Project Pausing](https://supabase.com/docs/guides/platform/free-project-pausing) ngày 17/11/2026:
+
+| Hạng mục | Gói Free (theo docs trên) |
+|----------|---------------------------|
+| Giá | $0/tháng |
+| Database | 500 MB / project |
+| File Storage | 1 GB |
+| Egress | 5 GB (kèm 5 GB cached egress) |
+| Số project active | tối đa 2 |
+| Tự tạm dừng | project Free bị pause sau **1 tuần không đủ hoạt động** (inactivity / low activity trong 7 ngày) |
+| Khôi phục | Resume từ Dashboard; cửa sổ restore tối đa **1 năm** sau khi pause |
+| Gói trả phí | không bị auto-pause vì inactivity |
+
+Lượng data demo (≈ 50 hàng chart/tuần + metadata + features) thường nhỏ hơn 500 MB / 1 GB Storage rất nhiều. Nếu project bị pause: vào Dashboard, chọn project, bấm Resume. Docs ghi khoảng vài request/ngày tới database thường đủ để tránh pause — không phải bảo đảm tuyệt đối. Muốn không bị pause thì nâng lên gói trả phí.
+
+### Việc cố ý chưa làm trong lần append này
+
+- Không sửa Assumptions, Tech Stack, Data model, hay cây thư mục phía trên.
+- Không sửa `pyproject.toml`, `.env`, `.env.example`, hay code.
+- Chưa tạo project Supabase, chưa chạy DDL, chưa đổi pipeline từ SQLite sang Postgres.
