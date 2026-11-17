@@ -126,6 +126,7 @@ These are **undecided** — do not treat as product defaults:
 | Path | Contents |
 |------|----------|
 | [`docs/SPEC.md`](docs/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
+| [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
 | [`architecture/music-pipeline.drawio`](architecture/music-pipeline.drawio) | Editable pipeline diagram |
 | [`architecture/music-pipeline.png`](architecture/music-pipeline.png) | Diagram export |
 
