@@ -76,7 +76,8 @@ Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/
 
 ## Connect DB supabase
 ```bash
-source .venv/Scripts/activate
+source .venv/bin/activate       # macOS / Linux
+# source .venv/Scripts/activate # Windows Git Bash
 python scripts/check_supabase.py
 ```
 
@@ -91,8 +92,9 @@ Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 ## Dev setup
 
 ```bash
-python -m venv .venv
-source .venv/Scripts/activate   # Windows Git Bash
+python3 -m venv .venv           # or: python -m venv .venv
+source .venv/bin/activate       # macOS / Linux
+# source .venv/Scripts/activate # Windows Git Bash
 pip install -e ".[dev]"
 cp .env.example .env            # optional until live Spotify calls
 pytest -q
