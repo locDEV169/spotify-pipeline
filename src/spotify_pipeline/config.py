@@ -12,6 +12,7 @@ _ENV_FILES = (
 )
 
 # Fixed Spotify endpoints (SPEC / official docs — not env-overridable)
+SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 
@@ -27,6 +28,12 @@ class Settings(BaseSettings):
 
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
+
+    # Authorization Code flow (only needed for /v1/me/* endpoints).
+    # Must match EXACTLY one Redirect URI in the Spotify Dashboard (use 127.0.0.1, not localhost).
+    spotify_redirect_uri: str = "http://127.0.0.1:5000/callback"
+    # Filled once by scripts/spotify_login.py; never commit.
+    spotify_refresh_token: str = ""
 
     data_dir: Path = Path("data")
     bronze_dir: Path = Path("data/bronze")
