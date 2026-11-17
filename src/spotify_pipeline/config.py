@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     # Filled once by scripts/spotify_login.py; never commit.
     spotify_refresh_token: str = ""
 
+    # Supabase (SPEC append "Lưu trữ bằng Supabase") — server/scripts only.
+    # Prefer SERVICE_ROLE for pipeline; never ship this key to a browser/FE bundle.
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    # Optional direct Postgres URL (psycopg) — not required for create_client().
+    supabase_db_url: str = ""
+
     data_dir: Path = Path("data")
     bronze_dir: Path = Path("data/bronze")
     silver_dir: Path = Path("data/silver")
