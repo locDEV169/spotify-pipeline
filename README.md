@@ -88,6 +88,15 @@ python scripts/apply_music_ddl.py docs/sql/music_schema.sql   # optional path
 ```
 Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
+## Bronze smoke: load / clear `music.raw_spotify`
+```bash
+python scripts/load_raw_spotify.py                  # default: Mr. Brightside
+python scripts/load_raw_spotify.py <track_id> ...
+# prints run_id — then:
+python scripts/clear_raw_spotify.py --run-id <run_id>
+python scripts/clear_raw_spotify.py --all --yes     # wipe table only
+```
+
 ## Dev setup
 
 ```bash
