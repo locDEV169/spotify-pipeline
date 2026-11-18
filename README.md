@@ -91,8 +91,12 @@ Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
 ## Bronze smoke: load / clear `music.raw_spotify`
 ```bash
-python scripts/load_raw_spotify.py                  # default: Mr. Brightside
-python scripts/load_raw_spotify.py <track_id> ...
+# Default: Charts public/v0 Weekly Global Top Songs (50) + Top Artists (50)
+python scripts/load_raw_spotify.py
+python scripts/load_raw_spotify.py --limit 10
+python scripts/load_raw_spotify.py --tracks-only
+python scripts/load_raw_spotify.py --artists-only
+python scripts/load_raw_spotify.py <track_id> ...   # explicit ids (skips Charts)
 # prints run_id — then:
 python scripts/clear_raw_spotify.py --run-id <run_id>
 python scripts/clear_raw_spotify.py --all --yes     # wipe table only

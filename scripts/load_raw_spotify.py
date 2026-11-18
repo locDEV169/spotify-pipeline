@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Fetch Spotify track JSON (Client Credentials) → INSERT music.raw_spotify.
+"""Fetch Spotify track/artist JSON → INSERT music.raw_spotify.
 
-Smoke Bronze loader — does not write Silver/Gold.
+Default (no ids): Charts public/v0 Weekly Global Top Songs (50) + Top Artists (50).
+Optional: pass explicit track ids (legacy Brightside-style smoke).
 
 Usage:
     python scripts/load_raw_spotify.py
+    python scripts/load_raw_spotify.py --limit 10
+    python scripts/load_raw_spotify.py --tracks-only
+    python scripts/load_raw_spotify.py --artists-only
     python scripts/load_raw_spotify.py 003vvx7Niy0yvhvHt4a68B
-    python scripts/load_raw_spotify.py <id1> <id2>
 
-Prints run_id for later: python scripts/clear_raw_spotify.py --run-id <run_id>
+Prints run_id for: python scripts/clear_raw_spotify.py --run-id <run_id>
 Never prints secrets or access tokens.
 """
 
@@ -17,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -25,23 +29,44 @@ _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-# SPEC E2E / check_spotify probe
-_DEFAULT_TRACK_ID = "003vvx7Niy0yvhvHt4a68B"
 _SOURCE = "spotify_web_api"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Load Spotify tracks into music.raw_spotify"
+        description="Load Spotify tracks/artists into music.raw_spotify"
     )
     parser.add_argument(
         "track_ids",
         nargs="*",
-        default=[_DEFAULT_TRACK_ID],
-        help=f"Spotify track ids (default: {_DEFAULT_TRACK_ID})",
+        help="Optional explicit Spotify track ids (skips Charts when provided)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Max songs and/or artists from Charts (default: all ≈50 each)",
+    )
+    parser.add_argument(
+        "--tracks-only",
+        action="store_true",
+        help="Only load Global Top Songs tracks",
+    )
+    parser.add_argument(
+        "--artists-only",
+        action="store_true",
+        help="Only load Global Top Artists",
+    )
+    parser.add_argument(
+        "--sleep",
+        type=float,
+        default=0.05,
+        help="Seconds between Web API calls (default: 0.05)",
     )
     args = parser.parse_args()
-    track_ids = list(dict.fromkeys(args.track_ids))  # dedupe, keep order
+    if args.tracks_only and args.artists_only:
+        print("FAIL: use only one of --tracks-only / --artists-only", file=sys.stderr)
+        return 2
 
     try:
         import httpx
@@ -49,7 +74,13 @@ def main() -> int:
         print('FAIL: thiếu httpx. python -m pip install -e ".[dev]"', file=sys.stderr)
         return 2
 
-    from spotify_pipeline.clients.spotify import SpotifyApiError, get_track
+    from spotify_pipeline.clients.charts import (
+        ChartsError,
+        fetch_public_charts,
+        weekly_global_top_artist_ids,
+        weekly_global_top_song_track_ids,
+    )
+    from spotify_pipeline.clients.spotify import SpotifyApiError, get_artist, get_track
     from spotify_pipeline.clients.spotify_auth import SpotifyAuthError, get_access_token
     from spotify_pipeline.config import get_settings
     from spotify_pipeline.db.postgres import (
@@ -72,11 +103,29 @@ def main() -> int:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 2
 
+    explicit_tracks = list(dict.fromkeys(args.track_ids))
+    track_ids: list[str] = []
+    artist_ids: list[str] = []
+
     run_id = uuid.uuid4().hex
     inserted = 0
 
     try:
-        with httpx.Client(timeout=30.0) as http:
+        with httpx.Client(timeout=60.0) as http:
+            if explicit_tracks:
+                track_ids = explicit_tracks
+                print(f"OK mode=explicit_tracks count={len(track_ids)}")
+            else:
+                charts = fetch_public_charts(client=http)
+                if not args.artists_only:
+                    track_ids = weekly_global_top_song_track_ids(
+                        charts, limit=args.limit
+                    )
+                    print(f"OK charts songs: {len(track_ids)} track ids")
+                if not args.tracks_only:
+                    artist_ids = weekly_global_top_artist_ids(charts, limit=args.limit)
+                    print(f"OK charts artists: {len(artist_ids)} artist ids")
+
             token = get_access_token(
                 settings.spotify_client_id,
                 settings.spotify_client_secret,
@@ -88,25 +137,23 @@ def main() -> int:
             try:
                 for track_id in track_ids:
                     payload = get_track(access, track_id, client=http)
-                    conn.run(
-                        """
-                        INSERT INTO music.raw_spotify
-                            (run_id, source, entity, spotify_id, payload)
-                        VALUES
-                            (:run_id, :source, :entity, :spotify_id, CAST(:payload AS jsonb))
-                        """,
-                        run_id=run_id,
-                        source=_SOURCE,
-                        entity="track",
-                        spotify_id=track_id,
-                        payload=json.dumps(payload, ensure_ascii=False),
-                    )
+                    _insert_raw(conn, run_id, "track", track_id, payload)
                     inserted += 1
-                    name = payload.get("name", "?")
-                    print(f"OK insert: spotify_id={track_id} name={name}")
+                    print(f"OK track: {track_id} | {payload.get('name', '?')}")
+                    if args.sleep:
+                        time.sleep(args.sleep)
+
+                for artist_id in artist_ids:
+                    payload = get_artist(access, artist_id, client=http)
+                    _insert_raw(conn, run_id, "artist", artist_id, payload)
+                    inserted += 1
+                    print(f"OK artist: {artist_id} | {payload.get('name', '?')}")
+                    if args.sleep:
+                        time.sleep(args.sleep)
             finally:
                 conn.close()
     except (
+        ChartsError,
         SpotifyAuthError,
         SpotifyApiError,
         PostgresConfigError,
@@ -114,13 +161,32 @@ def main() -> int:
     ) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
-    print(f"OK load_raw_spotify: inserted={inserted} run_id={run_id}")
+    print(
+        f"OK load_raw_spotify: inserted={inserted} "
+        f"tracks={len(track_ids)} artists={len(artist_ids)} run_id={run_id}"
+    )
     print(f"Clear later: python scripts/clear_raw_spotify.py --run-id {run_id}")
     return 0
+
+
+def _insert_raw(conn, run_id: str, entity: str, spotify_id: str, payload: dict) -> None:
+    conn.run(
+        """
+        INSERT INTO music.raw_spotify
+            (run_id, source, entity, spotify_id, payload)
+        VALUES
+            (:run_id, :source, :entity, :spotify_id, CAST(:payload AS jsonb))
+        """,
+        run_id=run_id,
+        source=_SOURCE,
+        entity=entity,
+        spotify_id=spotify_id,
+        payload=json.dumps(payload, ensure_ascii=False),
+    )
 
 
 if __name__ == "__main__":
