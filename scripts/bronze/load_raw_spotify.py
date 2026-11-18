@@ -4,11 +4,11 @@
 Smoke Bronze loader — does not write Silver/Gold.
 
 Usage:
-    python scripts/load_raw_spotify.py
-    python scripts/load_raw_spotify.py 003vvx7Niy0yvhvHt4a68B
-    python scripts/load_raw_spotify.py <id1> <id2>
+    python scripts/bronze/load_raw_spotify.py
+    python scripts/bronze/load_raw_spotify.py 003vvx7Niy0yvhvHt4a68B
+    python scripts/bronze/load_raw_spotify.py <id1> <id2>
 
-Prints run_id for later: python scripts/clear_raw_spotify.py --run-id <run_id>
+Prints run_id for later: python scripts/bronze/clear_raw_spotify.py --run-id <run_id>
 Never prints secrets or access tokens.
 """
 
@@ -20,7 +20,7 @@ import sys
 import uuid
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -119,7 +119,7 @@ def main() -> int:
         return 1
 
     print(f"OK load_raw_spotify: inserted={inserted} run_id={run_id}")
-    print(f"Clear later: python scripts/clear_raw_spotify.py --run-id {run_id}")
+    print(f"Clear later: python scripts/bronze/clear_raw_spotify.py --run-id {run_id}")
     return 0
 
 

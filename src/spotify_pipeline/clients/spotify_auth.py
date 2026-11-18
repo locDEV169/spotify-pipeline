@@ -116,7 +116,7 @@ def refresh_access_token(
     _require_client(client_id, client_secret)
     if not refresh_token:
         raise SpotifyAuthError(
-            "SPOTIFY_REFRESH_TOKEN is empty — run `python scripts/spotify_login.py` once first"
+            "SPOTIFY_REFRESH_TOKEN is empty — run `python scripts/auth/spotify_login.py` once first"
         )
     return _token_request(
         client_id,

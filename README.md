@@ -74,28 +74,45 @@ Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6*
 Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/` (stubs raise `NotImplementedError` until implemented per SPEC).
 
 
+## Scripts layout
+
+| Folder | Scripts |
+|--------|---------|
+| `scripts/check/` | smoke probes (`check_spotify`, `check_spotify_user`, `check_supabase`, `check_reccobeats`) |
+| `scripts/bronze/` | `load_raw_*` / `clear_raw_*` |
+| `scripts/ddl/` | `apply_music_ddl` |
+| `scripts/auth/` | `spotify_login` |
+
 ## Connect DB supabase
 ```bash
 source .venv/bin/activate       # macOS / Linux
 # source .venv/Scripts/activate # Windows Git Bash
-python scripts/check_supabase.py
+python scripts/check/check_supabase.py
 ```
 
 ## Migrate music SQL → Supabase (schema `music` only)
 ```bash
 # Requires SUPABASE_DB_URL in .env (Dashboard → Database → Connect)
-python scripts/apply_music_ddl.py
-python scripts/apply_music_ddl.py docs/sql/music_schema.sql   # optional path
+python scripts/ddl/apply_music_ddl.py
+python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql   # optional path
 ```
 Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
+## Bronze smoke: load / clear `music.raw_charts`
+```bash
+# Charts public/v0 → Weekly Top Songs + Top Artists (Global)
+python scripts/bronze/load_raw_charts.py
+python scripts/bronze/load_raw_charts.py --songs-only
+python scripts/bronze/clear_raw_charts.py --run-id <run_id>
+```
+
 ## Bronze smoke: load / clear `music.raw_spotify`
 ```bash
-python scripts/load_raw_spotify.py                  # default: Mr. Brightside
-python scripts/load_raw_spotify.py <track_id> ...
+python scripts/bronze/load_raw_spotify.py                  # default: Mr. Brightside
+python scripts/bronze/load_raw_spotify.py <track_id> ...
 # prints run_id — then:
-python scripts/clear_raw_spotify.py --run-id <run_id>
-python scripts/clear_raw_spotify.py --all --yes     # wipe table only
+python scripts/bronze/clear_raw_spotify.py --run-id <run_id>
+python scripts/bronze/clear_raw_spotify.py --all --yes     # wipe table only
 ```
 
 ## Dev setup

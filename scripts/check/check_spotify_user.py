@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Smoke-check user-scoped Spotify API: refresh_token → access_token → GET /v1/me + /v1/me/playlists.
 
-Usage (repo root, venv active, .env has SPOTIFY_REFRESH_TOKEN from scripts/spotify_login.py):
-    python scripts/check_spotify_user.py
+Usage (repo root, venv active, .env has SPOTIFY_REFRESH_TOKEN from scripts/auth/spotify_login.py):
+    python scripts/check/check_spotify_user.py
 
 No browser needed. Never prints secrets or tokens.
 """
@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))

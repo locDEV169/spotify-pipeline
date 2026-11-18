@@ -2,7 +2,7 @@
 """Local smoke-check: Spotify Client Credentials + one Web API track read.
 
 Usage (from repo root, with `.env` filled):
-    python scripts/check_spotify.py
+    python scripts/check/check_spotify.py
 
 Success: exit 0 after token + GET /v1/tracks/{id}.
 Never prints client secret or access token.
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 # Allow running without editable install (repo-root python scripts/...)
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -28,7 +28,7 @@ except ModuleNotFoundError:
         "Activate the project venv first, then retry:\n"
         "  source .venv/Scripts/activate   # Git Bash\n"
         '  python -m pip install -e ".[dev]"\n'
-        f"Or run:  {venv_python} scripts/check_spotify.py",
+        f"Or run:  {venv_python} scripts/check/check_spotify.py",
         file=sys.stderr,
     )
     raise SystemExit(2) from None
