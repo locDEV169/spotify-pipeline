@@ -102,15 +102,25 @@ python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql   # optional pat
 ```
 Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
-## Pipeline entrypoint (SPEC) — watermark + C9 ingest-charts
+## Pipeline entrypoint (SPEC) — watermark + C9 ingest / enrich
 ```bash
 # Watermark = (chart_date, chart_type, country). Must match live Charts public/v0 date.
 python -m spotify_pipeline ingest-charts \
   --chart-date 2026-11-12 \
   --chart-type weekly_top_songs \
   --country global
+
+python -m spotify_pipeline enrich-spotify \
+  --chart-date 2026-11-12 \
+  --chart-type weekly_top_songs \
+  --country global
+
+python -m spotify_pipeline enrich-reccobeats \
+  --chart-date 2026-11-12 \
+  --chart-type weekly_top_songs \
+  --country global
 ```
-`scripts/bronze/*` remain smoke helpers only.
+`scripts/bronze/*` remain smoke helpers only (not watermark stages).
 
 ## Bronze smoke: load / clear `music.raw_charts`
 ```bash

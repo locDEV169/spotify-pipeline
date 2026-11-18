@@ -1,7 +1,5 @@
 """C14 — CLI entrypoints (SPEC command names)."""
 
-from typing import Optional
-
 import typer
 
 app = typer.Typer(
@@ -74,21 +72,83 @@ def ingest_charts_cmd(
 
 
 @app.command("enrich-spotify")
-def enrich_spotify(
-    chart_date: Optional[str] = typer.Option(None, "--chart-date"),  # noqa: UP045
+def enrich_spotify_cmd(
+    chart_date: str = typer.Option(
+        ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
+    ),
+    chart_type: str = typer.Option(
+        "weekly_top_songs",
+        "--chart-type",
+        help="e.g. weekly_top_songs | weekly_top_artists",
+    ),
+    country: str = typer.Option("global", "--country", help="Chart country / region"),
+    no_fs: bool = typer.Option(
+        False, "--no-fs", help="Skip dual-write under data/bronze/"
+    ),
 ) -> None:
-    """SPEC C9 — enrich Spotify metadata → Bronze."""
-    _ = chart_date
-    _not_implemented("enrich-spotify")
+    """SPEC C9 — enrich Spotify metadata → Bronze for one watermark."""
+    from spotify_pipeline.pipeline.enrich_spotify import (
+        EnrichSpotifyError,
+        enrich_spotify,
+    )
+    from spotify_pipeline.state.watermark import Watermark, WatermarkError
+
+    try:
+        watermark = Watermark.parse(chart_date, chart_type, country)
+        result = enrich_spotify(watermark, write_fs=not no_fs)
+    except (WatermarkError, EnrichSpotifyError) as exc:
+        typer.secho(f"FAIL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "OK enrich-spotify "
+        f"watermark={result['watermark']} "
+        f"tracks={result['track_count']} "
+        f"artists={result['artist_count']} "
+        f"inserted={result['inserted']} "
+        f"run_id={result['run_id']}"
+    )
 
 
 @app.command("enrich-reccobeats")
-def enrich_reccobeats(
-    chart_date: Optional[str] = typer.Option(None, "--chart-date"),  # noqa: UP045
+def enrich_reccobeats_cmd(
+    chart_date: str = typer.Option(
+        ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
+    ),
+    chart_type: str = typer.Option(
+        "weekly_top_songs",
+        "--chart-type",
+        help="Must be weekly_top_songs for audio-features",
+    ),
+    country: str = typer.Option("global", "--country", help="Chart country / region"),
+    no_fs: bool = typer.Option(
+        False, "--no-fs", help="Skip dual-write under data/bronze/"
+    ),
 ) -> None:
-    """SPEC C9 — enrich ReccoBeats features → Bronze."""
-    _ = chart_date
-    _not_implemented("enrich-reccobeats")
+    """SPEC C9 — enrich ReccoBeats features → Bronze for one watermark."""
+    from spotify_pipeline.pipeline.enrich_reccobeats import (
+        EnrichReccoBeatsError,
+        enrich_reccobeats,
+    )
+    from spotify_pipeline.state.watermark import Watermark, WatermarkError
+
+    try:
+        watermark = Watermark.parse(chart_date, chart_type, country)
+        result = enrich_reccobeats(watermark, write_fs=not no_fs)
+    except (WatermarkError, EnrichReccoBeatsError) as exc:
+        typer.secho(f"FAIL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "OK enrich-reccobeats "
+        f"watermark={result['watermark']} "
+        f"tracks={result['track_count']} "
+        f"batches={result['batch_count']} "
+        f"hits={result['hits']} "
+        f"misses={result['misses']} "
+        f"inserted={result['inserted']} "
+        f"run_id={result['run_id']}"
+    )
 
 
 @app.command("build-silver")
