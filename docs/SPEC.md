@@ -247,7 +247,7 @@ flowchart LR
 
 **Watermark:** `(chart_date, chart_type, country)` — one pipeline run = one watermark.
 
-**Stage 4 fidelity (18/11/2026):** `EX` reads IDs from Bronze `music.raw_charts` (not live Charts re-fetch on happy path). `run` performs **logical fan-out**: extract once → enrich-spotify → enrich-reccobeats (sequential in-process; same ID set). Silver `features_found` / coverage deferred. See [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md).
+**Stage 4 fidelity (18/11/2026):** `EX` reads IDs from Bronze `music.raw_charts` (not live Charts re-fetch on happy path). `run` performs **logical fan-out**: extract once → enrich-spotify → enrich-reccobeats (sequential in-process; same ID set). **Silver C10 (18/11):** `build-silver` one-pass upserts `fact_chart` + dims + bridge + `features_found` from Bronze only (LEFT JOIN semantics). `run` remains Bronze-only until SQ-11. See [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md).
 
 ---
 
@@ -491,6 +491,7 @@ CI: offline tests only.
 | 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/ddl/apply_music_ddl.py`. |
 | 2026-11-18 | Stage 4 fidelity: `extract_ids` từ Bronze `raw_charts`; enrich + `run` Bronze-only logical fan-out (Q-A=2, Q-B=2). Coverage/`features_found` Silver **hoãn**. Checklist: `docs/CHECKLIST_SPEC_GAPS.md`. |
 | 2026-11-18 | Doc lock: **Q-C=1** Postgres `music.*` SoR (Assumption #4 + Tech Stack); **Q-D=2** single-ID Spotify MVP (Assumption #8 + Open Q1 closed for MVP); README synced. Batch `?ids=` / Silver builders vẫn deferred. |
+| 2026-11-18 | **Silver C10 MVP (W1–W6):** `build_silver` / CLI `build-silver` — fact_chart · dim_track · dim_artist+bridge · ReccoBeats `features_found` · LEFT JOIN read helper · COALESCE upserts. Soft SQ-1…SQ-7/SQ-11 kept as soft (run→Silver still deferred). Checklist §D. |
 
 ---
 
