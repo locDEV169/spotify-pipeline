@@ -102,6 +102,16 @@ python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql   # optional pat
 ```
 Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
+## Pipeline entrypoint (SPEC) — watermark + C9 ingest-charts
+```bash
+# Watermark = (chart_date, chart_type, country). Must match live Charts public/v0 date.
+python -m spotify_pipeline ingest-charts \
+  --chart-date 2026-11-12 \
+  --chart-type weekly_top_songs \
+  --country global
+```
+`scripts/bronze/*` remain smoke helpers only.
+
 ## Bronze smoke: load / clear `music.raw_charts`
 ```bash
 # Charts public/v0 → Weekly Top Songs + Top Artists (Global)
@@ -109,6 +119,7 @@ python scripts/bronze/load_raw_charts.py
 python scripts/bronze/load_raw_charts.py --songs-only
 python scripts/bronze/clear_raw_charts.py --run-id <run_id>
 ```
+
 
 ## Bronze smoke: load / clear `music.raw_spotify`
 ```bash
