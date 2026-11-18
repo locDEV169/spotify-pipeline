@@ -245,6 +245,8 @@ flowchart LR
 
 **Watermark:** `(chart_date, chart_type, country)` — one pipeline run = one watermark.
 
+**Stage 4 fidelity (18/11/2026):** `EX` reads IDs from Bronze `music.raw_charts` (not live Charts re-fetch on happy path). `run` performs **logical fan-out**: extract once → enrich-spotify → enrich-reccobeats (sequential in-process; same ID set). Silver `features_found` / coverage deferred. See [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md).
+
 ---
 
 ## Component breakdown (implementable units)
@@ -485,6 +487,7 @@ CI: offline tests only.
 | 2026-11-17 | Quyết định: bảng nhạc nằm schema Postgres **`music`** (tách khỏi weather/`public`). Chỉ sync `docs/SPEC.md` (không Notion). DDL vẫn **chưa chạy**. |
 | 2026-11-17 | Thêm `docs/sql/music_schema.sql` + `scripts/ddl/apply_music_ddl.py` (schema `music.*`, không đụng weather). Apply cần `SUPABASE_DB_URL` — **chưa apply** nếu URI chưa có trong `.env`. |
 | 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/ddl/apply_music_ddl.py`. |
+| 2026-11-18 | Stage 4 fidelity: `extract_ids` từ Bronze `raw_charts`; enrich + `run` Bronze-only logical fan-out (Q-A=2, Q-B=2). Coverage/`features_found` Silver **hoãn**. Checklist: `docs/CHECKLIST_SPEC_GAPS.md`. |
 
 ---
 

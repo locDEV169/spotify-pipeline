@@ -8,16 +8,6 @@ from typing import Any
 
 import httpx
 
-from spotify_pipeline.clients.charts import (
-    ALIAS_ARTISTS,
-    ALIAS_SONGS,
-    ChartsError,
-    chart_view_watermark,
-    fetch_public_charts,
-    view_by_alias,
-    weekly_global_top_artist_ids,
-    weekly_global_top_song_track_ids,
-)
 from spotify_pipeline.clients.spotify import SpotifyApiError, get_artist, get_track
 from spotify_pipeline.clients.spotify_auth import SpotifyAuthError, get_access_token
 from spotify_pipeline.config import get_settings
@@ -28,14 +18,10 @@ from spotify_pipeline.db.postgres import (
     require_db_url,
 )
 from spotify_pipeline.pipeline.bronze import write_raw_spotify
+from spotify_pipeline.pipeline.extract_ids import ExtractIdsError, extract_ids
 from spotify_pipeline.state.watermark import Watermark, WatermarkError
 
 _SOURCE = "spotify_web_api"
-
-_CHART_TYPE_TO_ALIAS = {
-    "weekly_top_songs": ALIAS_SONGS,
-    "weekly_top_artists": ALIAS_ARTISTS,
-}
 
 
 class EnrichSpotifyError(RuntimeError):
@@ -49,15 +35,15 @@ def enrich_spotify(
     run_id: str | None = None,
     bronze_dir: Path | None = None,
     write_fs: bool = True,
+    track_ids: list[str] | None = None,
+    artist_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Fetch Spotify track/artist JSON for one watermark → C8 write_raw_spotify.
 
-    ID source: live Charts public/v0 (same gate as ingest_charts).
-    - weekly_top_songs: tracks + artists from track payloads
-    - weekly_top_artists: artists only
+    ID source (Q-A=2): Bronze `raw_charts` via extract_ids, unless caller
+    injects precomputed track_ids / artist_ids (Stage 4 fan-out / run).
     """
-    alias = _CHART_TYPE_TO_ALIAS.get(watermark.chart_type)
-    if alias is None:
+    if watermark.chart_type not in {"weekly_top_songs", "weekly_top_artists"}:
         raise EnrichSpotifyError(
             f"unsupported chart_type for enrich-spotify: {watermark.chart_type!r}"
         )
@@ -78,6 +64,20 @@ def enrich_spotify(
     if bronze_dir is not None:
         fs_dir = bronze_dir
 
+    try:
+        if track_ids is None and artist_ids is None:
+            extracted = extract_ids(watermark)
+            track_ids = list(extracted.track_ids)
+            artist_ids = list(extracted.artist_ids)
+        else:
+            track_ids = list(track_ids or [])
+            artist_ids = list(artist_ids or [])
+    except ExtractIdsError as exc:
+        raise EnrichSpotifyError(str(exc)) from exc
+
+    if not track_ids and not artist_ids:
+        raise EnrichSpotifyError("no track/artist ids to enrich")
+
     owns = client is None
     http = client or httpx.Client(timeout=60.0)
     track_count = 0
@@ -85,27 +85,6 @@ def enrich_spotify(
     inserted = 0
 
     try:
-        payload = fetch_public_charts(client=http)
-        view = view_by_alias(payload, alias)
-        live_date, live_type, live_country = chart_view_watermark(view)
-        if not watermark.matches(live_date, live_type, live_country):
-            raise EnrichSpotifyError(
-                "live chart watermark mismatch: "
-                f"requested={watermark.as_tuple()} "
-                f"live={(live_date, live_type, live_country)}. "
-                "Use the live chart_date from Charts public/v0."
-            )
-
-        track_ids: list[str] = []
-        artist_ids: list[str] = []
-        if watermark.chart_type == "weekly_top_songs":
-            track_ids = weekly_global_top_song_track_ids(payload)
-        else:
-            artist_ids = weekly_global_top_artist_ids(payload)
-
-        if not track_ids and not artist_ids:
-            raise EnrichSpotifyError("no track/artist ids to enrich")
-
         token = get_access_token(
             settings.spotify_client_id,
             settings.spotify_client_secret,
@@ -160,7 +139,6 @@ def enrich_spotify(
         finally:
             conn.close()
     except (
-        ChartsError,
         SpotifyAuthError,
         SpotifyApiError,
         WatermarkError,

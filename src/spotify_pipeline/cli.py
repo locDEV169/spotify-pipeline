@@ -14,7 +14,7 @@ def _not_implemented(name: str) -> None:
 
 
 @app.command("run")
-def run(
+def run_cmd(
     chart_date: str = typer.Option(
         ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
     ),
@@ -24,14 +24,62 @@ def run(
         help="Chart type, e.g. weekly_top_songs",
     ),
     country: str = typer.Option("global", "--country", help="Chart country / region"),
+    no_fs: bool = typer.Option(
+        False, "--no-fs", help="Skip dual-write under data/bronze/"
+    ),
+    skip_ingest: bool = typer.Option(
+        False,
+        "--skip-ingest",
+        help="Skip ingest-charts; require existing Bronze raw_charts",
+    ),
     offline: bool = typer.Option(
         False, "--offline", help="Use fixtures only (no live network)"
     ),
     report: bool = typer.Option(False, "--report", help="Print Gold summary after run"),
 ) -> None:
-    """Full pipeline for one watermark (SPEC C14 / C9–C13)."""
-    _ = (chart_date, chart_type, country, offline, report)
-    _not_implemented("run")
+    """Bronze Stage 4 cycle: ingest → extract once → Spotify ∥ ReccoBeats.
+
+    Silver/Gold/report still deferred. Offline fixtures not implemented yet.
+    """
+    if offline:
+        typer.secho(
+            "FAIL: --offline not implemented yet (fixtures / full medallion later)",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if report:
+        typer.secho(
+            "WARN: --report ignored until Gold is implemented",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+
+    from spotify_pipeline.pipeline.run import RunError, run_bronze
+    from spotify_pipeline.state.watermark import Watermark, WatermarkError
+
+    try:
+        watermark = Watermark.parse(chart_date, chart_type, country)
+        result = run_bronze(
+            watermark,
+            write_fs=not no_fs,
+            ingest=not skip_ingest,
+        )
+    except (WatermarkError, RunError) as exc:
+        typer.secho(f"FAIL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    ex = result.get("extract") or {}
+    sp = result.get("enrich_spotify") or {}
+    rb = result.get("enrich_reccobeats") or {}
+    typer.echo(
+        "OK run (bronze) "
+        f"watermark={result['watermark']} "
+        f"extract_tracks={ex.get('track_count')} "
+        f"spotify_inserted={sp.get('inserted')} "
+        f"reccobeats_inserted={rb.get('inserted')} "
+        f"run_id={result['run_id']}"
+    )
 
 
 @app.command("ingest-charts")

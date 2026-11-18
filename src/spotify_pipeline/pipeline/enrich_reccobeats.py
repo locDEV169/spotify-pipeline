@@ -8,14 +8,6 @@ from typing import Any
 
 import httpx
 
-from spotify_pipeline.clients.charts import (
-    ALIAS_SONGS,
-    ChartsError,
-    chart_view_watermark,
-    fetch_public_charts,
-    view_by_alias,
-    weekly_global_top_song_track_ids,
-)
 from spotify_pipeline.clients.reccobeats import (
     ReccoBeatsError,
     audio_features_hits_misses,
@@ -30,6 +22,7 @@ from spotify_pipeline.db.postgres import (
     require_db_url,
 )
 from spotify_pipeline.pipeline.bronze import write_raw_reccobeats
+from spotify_pipeline.pipeline.extract_ids import ExtractIdsError, extract_ids
 from spotify_pipeline.state.watermark import Watermark, WatermarkError
 
 _SOURCE = "reccobeats"
@@ -47,10 +40,12 @@ def enrich_reccobeats(
     run_id: str | None = None,
     bronze_dir: Path | None = None,
     write_fs: bool = True,
+    track_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Fetch ReccoBeats audio-features for one watermark → C8 write_raw_reccobeats.
 
     Requires chart_type=weekly_top_songs. Batches ≤40. Misses do not fail the run.
+    ID source (Q-A=2): Bronze via extract_ids, unless track_ids injected (run fan-out).
     """
     if watermark.chart_type != "weekly_top_songs":
         raise EnrichReccoBeatsError(
@@ -71,29 +66,26 @@ def enrich_reccobeats(
         fs_dir = bronze_dir
     batch_size = settings.reccobeats_batch_size or 40
 
+    try:
+        if track_ids is None:
+            extracted = extract_ids(watermark)
+            track_ids = list(extracted.track_ids)
+        else:
+            track_ids = list(track_ids)
+    except ExtractIdsError as exc:
+        raise EnrichReccoBeatsError(str(exc)) from exc
+
+    if not track_ids:
+        raise EnrichReccoBeatsError("no track ids to enrich")
+
     owns = client is None
     http = client or httpx.Client(timeout=60.0)
     hits_total = 0
     misses_total = 0
     inserted = 0
+    batches = chunk_ids(track_ids, size=batch_size)
 
     try:
-        payload = fetch_public_charts(client=http)
-        view = view_by_alias(payload, ALIAS_SONGS)
-        live_date, live_type, live_country = chart_view_watermark(view)
-        if not watermark.matches(live_date, live_type, live_country):
-            raise EnrichReccoBeatsError(
-                "live chart watermark mismatch: "
-                f"requested={watermark.as_tuple()} "
-                f"live={(live_date, live_type, live_country)}. "
-                "Use the live chart_date from Charts public/v0."
-            )
-
-        track_ids = weekly_global_top_song_track_ids(payload)
-        if not track_ids:
-            raise EnrichReccoBeatsError("no track ids to enrich")
-
-        batches = chunk_ids(track_ids, size=batch_size)
         conn = connect_postgres(db_url)
         try:
             for batch in batches:
@@ -119,7 +111,7 @@ def enrich_reccobeats(
                 inserted += 1
         finally:
             conn.close()
-    except (ChartsError, ReccoBeatsError, WatermarkError, httpx.HTTPError) as exc:
+    except (ReccoBeatsError, WatermarkError, httpx.HTTPError) as exc:
         raise EnrichReccoBeatsError(str(exc)) from exc
     finally:
         if owns:

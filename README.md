@@ -1,7 +1,8 @@
 # Spotify Charts → Web API → ReccoBeats Pipeline
 
-**Status:** Scaffold ready — package tree + CLI stubs (`NotImplementedError`). Pipeline logic not implemented yet.  
-**Audience:** Learning / portfolio demo — not legal advice, not production SaaS.
+**Status:** Bronze Stage 4 fidelity in progress — C7–C9 + extract-from-Bronze + `run` (Bronze-only). Silver/Gold/backfill still stubs.  
+**Audience:** Learning / portfolio demo — not legal advice, not production SaaS.  
+**Gaps checklist:** [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md)
 
 Local **batch** data pipeline design that ingests Spotify chart rankings, enriches track/artist metadata via the Spotify Web API (Client Credentials), pulls audio-feature metrics from **ReccoBeats**, and lands data in a **Bronze → Silver → Gold** (medallion) layout.
 
@@ -102,9 +103,19 @@ python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql   # optional pat
 ```
 Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
-## Pipeline entrypoint (SPEC) — watermark + C9 ingest / enrich
+## Pipeline entrypoint (SPEC) — watermark + Bronze Stage 4
 ```bash
-# Watermark = (chart_date, chart_type, country). Must match live Charts public/v0 date.
+# Watermark = (chart_date, chart_type, country).
+# ingest-charts: chart_date must match live Charts public/v0.
+# enrich / run: IDs come from Bronze raw_charts (extract once), not live Charts re-fetch.
+
+# One Bronze cycle: ingest → extract IDs once → Spotify + ReccoBeats (logical fan-out)
+python -m spotify_pipeline run \
+  --chart-date 2026-11-12 \
+  --chart-type weekly_top_songs \
+  --country global
+
+# Or stages separately (each enrich extracts from Bronze unless already ingested)
 python -m spotify_pipeline ingest-charts \
   --chart-date 2026-11-12 \
   --chart-type weekly_top_songs \
@@ -119,8 +130,11 @@ python -m spotify_pipeline enrich-reccobeats \
   --chart-date 2026-11-12 \
   --chart-type weekly_top_songs \
   --country global
+
+# Skip re-ingest when Bronze charts already exist:
+python -m spotify_pipeline run --chart-date 2026-11-12 --skip-ingest
 ```
-`scripts/bronze/*` remain smoke helpers only (not watermark stages).
+`scripts/bronze/*` remain smoke helpers only (not watermark stages). Silver/Gold deferred.
 
 ## Bronze smoke: load / clear `music.raw_charts`
 ```bash
