@@ -73,6 +73,7 @@ def main() -> int:
     from spotify_pipeline.config import get_settings
     from spotify_pipeline.db.postgres import (
         PostgresConfigError,
+        call_with_db_retry,
         connect_postgres,
         require_db_url,
     )
@@ -108,19 +109,24 @@ def main() -> int:
             batches = chunk_ids(track_ids, size=batch_size)
             print(f"OK batches={len(batches)} batch_size={batch_size}")
 
-            conn = connect_postgres(settings.supabase_db_url.strip())
+            db_url = settings.supabase_db_url.strip()
+            conn = connect_postgres(db_url)
             try:
                 for i, batch in enumerate(batches, start=1):
                     payload = get_audio_features(batch, client=http)
                     hits, misses = audio_features_hits_misses(batch, payload)
-                    write_raw_reccobeats(
-                        conn,
-                        run_id=run_id,
-                        source=_SOURCE,
-                        endpoint=_ENDPOINT,
-                        spotify_track_ids=batch,
-                        payload=payload,
-                    )
+
+                    def _write(c, _batch=batch, _payload=payload):
+                        write_raw_reccobeats(
+                            c,
+                            run_id=run_id,
+                            source=_SOURCE,
+                            endpoint=_ENDPOINT,
+                            spotify_track_ids=_batch,
+                            payload=_payload,
+                        )
+
+                    conn = call_with_db_retry(db_url, conn, _write)
                     inserted += 1
                     print(
                         f"OK batch {i}/{len(batches)}: "

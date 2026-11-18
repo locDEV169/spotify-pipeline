@@ -82,6 +82,7 @@ def main() -> int:
     from spotify_pipeline.config import get_settings
     from spotify_pipeline.db.postgres import (
         PostgresConfigError,
+        call_with_db_retry,
         connect_postgres,
         require_db_url,
     )
@@ -131,18 +132,23 @@ def main() -> int:
             )
             access = str(token["access_token"])
 
-            conn = connect_postgres(settings.supabase_db_url.strip())
+            db_url = settings.supabase_db_url.strip()
+            conn = connect_postgres(db_url)
             try:
                 for track_id in track_ids:
                     payload = get_track(access, track_id, client=http)
-                    write_raw_spotify(
-                        conn,
-                        run_id=run_id,
-                        source=_SOURCE,
-                        entity="track",
-                        spotify_id=track_id,
-                        payload=payload,
-                    )
+
+                    def _write_track(c, _payload=payload, _id=track_id):
+                        write_raw_spotify(
+                            c,
+                            run_id=run_id,
+                            source=_SOURCE,
+                            entity="track",
+                            spotify_id=_id,
+                            payload=_payload,
+                        )
+
+                    conn = call_with_db_retry(db_url, conn, _write_track)
                     inserted += 1
                     print(f"OK track: {track_id} | {payload.get('name', '?')}")
                     if args.sleep:
@@ -150,14 +156,18 @@ def main() -> int:
 
                 for artist_id in artist_ids:
                     payload = get_artist(access, artist_id, client=http)
-                    write_raw_spotify(
-                        conn,
-                        run_id=run_id,
-                        source=_SOURCE,
-                        entity="artist",
-                        spotify_id=artist_id,
-                        payload=payload,
-                    )
+
+                    def _write_artist(c, _payload=payload, _id=artist_id):
+                        write_raw_spotify(
+                            c,
+                            run_id=run_id,
+                            source=_SOURCE,
+                            entity="artist",
+                            spotify_id=_id,
+                            payload=_payload,
+                        )
+
+                    conn = call_with_db_retry(db_url, conn, _write_artist)
                     inserted += 1
                     print(f"OK artist: {artist_id} | {payload.get('name', '?')}")
                     if args.sleep:
