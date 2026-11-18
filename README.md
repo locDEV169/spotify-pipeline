@@ -108,11 +108,19 @@ python scripts/bronze/clear_raw_charts.py --run-id <run_id>
 
 ## Bronze smoke: load / clear `music.raw_spotify`
 ```bash
-python scripts/bronze/load_raw_spotify.py                  # default: Mr. Brightside
+python scripts/bronze/load_raw_spotify.py                  # default: Charts top songs+artists
 python scripts/bronze/load_raw_spotify.py <track_id> ...
 # prints run_id — then:
 python scripts/bronze/clear_raw_spotify.py --run-id <run_id>
 python scripts/bronze/clear_raw_spotify.py --all --yes     # wipe table only
+```
+
+## Bronze smoke: load / clear `music.raw_reccobeats`
+```bash
+# ReccoBeats audio-features — default: Charts Weekly Global Top Songs (~50, chunked ≤40)
+python scripts/bronze/load_raw_reccobeats.py
+python scripts/bronze/load_raw_reccobeats.py 003vvx7Niy0yvhvHt4a68B
+python scripts/bronze/clear_raw_reccobeats.py --run-id <run_id>
 ```
 
 ## Dev setup

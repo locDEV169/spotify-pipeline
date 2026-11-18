@@ -2,6 +2,7 @@
 
 from spotify_pipeline.config.config import (
     CHARTS_PUBLIC_URL,
+    RECCOBEATS_API_BASE,
     SPOTIFY_API_BASE,
     SPOTIFY_AUTHORIZE_URL,
     SPOTIFY_TOKEN_URL,
@@ -11,6 +12,7 @@ from spotify_pipeline.config.config import (
 
 __all__ = [
     "CHARTS_PUBLIC_URL",
+    "RECCOBEATS_API_BASE",
     "SPOTIFY_API_BASE",
     "SPOTIFY_AUTHORIZE_URL",
     "SPOTIFY_TOKEN_URL",
