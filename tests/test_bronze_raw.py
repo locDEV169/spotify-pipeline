@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from spotify_pipeline.pipeline.bronze import (
@@ -14,15 +13,15 @@ from spotify_pipeline.pipeline.bronze import (
 
 class _FakeConn:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.sqls: list[str] = []
 
     def run(self, sql: str, **kwargs: Any) -> None:
-        self.calls.append((sql, kwargs))
+        assert kwargs == {}, "C8 must use simple queries (no bind kwargs)"
+        self.sqls.append(sql)
 
 
-def test_write_raw_charts() -> None:
+def test_write_raw_charts_simple_sql() -> None:
     conn = _FakeConn()
-    payload = {"entries": [{"rank": 1}]}
     write_raw_charts(
         conn,
         run_id="r1",
@@ -30,49 +29,41 @@ def test_write_raw_charts() -> None:
         chart_date="2026-11-12",
         chart_type="weekly_top_songs",
         country="global",
-        payload=payload,
+        payload={"entries": [{"rank": 1}]},
     )
-    assert len(conn.calls) == 1
-    sql, kwargs = conn.calls[0]
-    assert "music.raw_charts" in sql
-    assert "CAST(:chart_date AS date)" in sql
-    assert kwargs["run_id"] == "r1"
-    assert kwargs["chart_type"] == "weekly_top_songs"
-    assert json.loads(kwargs["payload"]) == payload
+    sql = conn.sqls[0]
+    assert "INSERT INTO music.raw_charts" in sql
+    assert "CAST('2026-11-12' AS date)" in sql
+    assert "::jsonb" in sql
+    assert "weekly_top_songs" in sql
 
 
-def test_write_raw_spotify() -> None:
+def test_write_raw_spotify_escapes_quotes() -> None:
     conn = _FakeConn()
-    payload = {"id": "abc", "name": "Song"}
     write_raw_spotify(
         conn,
         run_id="r2",
         source="spotify_web_api",
         entity="track",
         spotify_id="abc",
-        payload=payload,
+        payload={"name": "It's live", "uri": "spotify:track:abc"},
     )
-    sql, kwargs = conn.calls[0]
-    assert "music.raw_spotify" in sql
-    assert kwargs["entity"] == "track"
-    assert kwargs["spotify_id"] == "abc"
-    assert json.loads(kwargs["payload"]) == payload
+    sql = conn.sqls[0]
+    assert "INSERT INTO music.raw_spotify" in sql
+    assert "It's live" in sql or "It''s live" in sql
+    assert "spotify:track:abc" in sql
 
 
-def test_write_raw_reccobeats() -> None:
+def test_write_raw_reccobeats_text_array() -> None:
     conn = _FakeConn()
-    payload = {"content": []}
-    ids = ["aaa", "bbb"]
     write_raw_reccobeats(
         conn,
         run_id="r3",
         source="reccobeats",
         endpoint="audio-features",
-        spotify_track_ids=ids,
-        payload=payload,
+        spotify_track_ids=["aaa", "bbb"],
+        payload={"content": []},
     )
-    sql, kwargs = conn.calls[0]
-    assert "music.raw_reccobeats" in sql
-    assert kwargs["endpoint"] == "audio-features"
-    assert kwargs["spotify_track_ids"] == ids
-    assert json.loads(kwargs["payload"]) == payload
+    sql = conn.sqls[0]
+    assert "INSERT INTO music.raw_reccobeats" in sql
+    assert "ARRAY['aaa', 'bbb']::text[]" in sql

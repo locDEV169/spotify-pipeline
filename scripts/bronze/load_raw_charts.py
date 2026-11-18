@@ -54,6 +54,7 @@ def main() -> int:
     from spotify_pipeline.config import get_settings
     from spotify_pipeline.db.postgres import (
         PostgresConfigError,
+        call_with_db_retry,
         connect_postgres,
         require_db_url,
     )
@@ -80,7 +81,8 @@ def main() -> int:
     try:
         with httpx.Client(timeout=60.0) as http:
             payload = fetch_public_charts(client=http)
-            conn = connect_postgres(settings.supabase_db_url.strip())
+            db_url = settings.supabase_db_url.strip()
+            conn = connect_postgres(db_url)
             try:
                 for alias in aliases:
                     view = view_by_alias(payload, alias)
@@ -91,15 +93,19 @@ def main() -> int:
                         "displayChart": view.get("displayChart"),
                         "entries": entries,
                     }
-                    write_raw_charts(
-                        conn,
-                        run_id=run_id,
-                        source=_SOURCE,
-                        chart_date=chart_date,
-                        chart_type=chart_type,
-                        country=country,
-                        payload=row_payload,
-                    )
+
+                    def _write(c, _payload=row_payload, _date=chart_date, _type=chart_type, _country=country):
+                        write_raw_charts(
+                            c,
+                            run_id=run_id,
+                            source=_SOURCE,
+                            chart_date=_date,
+                            chart_type=_type,
+                            country=_country,
+                            payload=_payload,
+                        )
+
+                    conn = call_with_db_retry(db_url, conn, _write)
                     inserted += 1
                     print(
                         f"OK insert: alias={alias} chart_date={chart_date} "

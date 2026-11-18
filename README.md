@@ -85,6 +85,8 @@ Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/
 
 **Bronze store of record:** Postgres `music.raw_*` (jsonb + `ingested_at`) via `pipeline/bronze.py` (C8). Local filesystem `data/bronze/` (SPEC Assumptions #4) is deferred.
 
+For long `load_raw_*` loops, set `SUPABASE_DB_URL` to Session pooler **`…pooler.supabase.com:5432`**. Transaction pooler **:6543** can raise pg8000 `08P01` / `26000` prepared-statement errors; Direct `db.<ref>:5432` may time out on some networks.
+
 ## Connect DB supabase
 ```bash
 source .venv/bin/activate       # macOS / Linux
