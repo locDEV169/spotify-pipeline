@@ -16,6 +16,12 @@ def test_spotify_id_from_uri() -> None:
 
 
 def test_parse_ids_and_watermark() -> None:
+    assert spotify_id_from_uri("spotify:track:3h5T5JypYU7huFiVYhv1dr") == "3h5T5JypYU7huFiVYhv1dr"
+    assert spotify_id_from_uri("spotify:artist:3TVXtAsR1Inumwj472S9r4") == "3TVXtAsR1Inumwj472S9r4"
+    assert spotify_id_from_uri("") == ""
+
+
+def test_parse_song_and_artist_ids_from_payload() -> None:
     payload = {
         "chartEntryViewResponses": [
             {

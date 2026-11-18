@@ -17,6 +17,14 @@ import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+from spotify_pipeline.config import get_settings
+from spotify_pipeline.db.postgres import (
+    PostgresConfigError,
+    connect_postgres,
+    require_db_url,
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -54,9 +62,6 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-
-    from spotify_pipeline.db.postgres import PostgresConfigError, connect_postgres, require_db_url
-    from spotify_pipeline.config import get_settings
 
     settings = get_settings()
     try:
