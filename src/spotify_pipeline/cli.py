@@ -1,4 +1,4 @@
-"""C14 — CLI entrypoints (SPEC command names). Stubs until pipeline is implemented."""
+"""C14 — CLI entrypoints (SPEC command names)."""
 
 from typing import Optional
 
@@ -6,7 +6,7 @@ import typer
 
 app = typer.Typer(
     name="spotify-pipeline",
-    help="Spotify Charts → Web API → ReccoBeats batch pipeline (scaffold stubs).",
+    help="Spotify Charts → Web API → ReccoBeats batch pipeline.",
     no_args_is_help=True,
 )
 
@@ -37,14 +37,40 @@ def run(
 
 
 @app.command("ingest-charts")
-def ingest_charts(
-    chart_date: str = typer.Option(..., "--chart-date"),
-    chart_type: str = typer.Option("weekly_top_songs", "--chart-type"),
-    country: str = typer.Option("global", "--country"),
+def ingest_charts_cmd(
+    chart_date: str = typer.Option(
+        ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
+    ),
+    chart_type: str = typer.Option(
+        "weekly_top_songs",
+        "--chart-type",
+        help="e.g. weekly_top_songs | weekly_top_artists",
+    ),
+    country: str = typer.Option("global", "--country", help="Chart country / region"),
+    no_fs: bool = typer.Option(
+        False, "--no-fs", help="Skip dual-write under data/bronze/"
+    ),
 ) -> None:
-    """SPEC C9 — ingest Charts → Bronze."""
-    _ = (chart_date, chart_type, country)
-    _not_implemented("ingest-charts")
+    """SPEC C9 — ingest Charts public/v0 → Bronze for one watermark."""
+    from spotify_pipeline.pipeline.ingest_charts import (
+        IngestChartsError,
+        ingest_charts,
+    )
+    from spotify_pipeline.state.watermark import Watermark, WatermarkError
+
+    try:
+        watermark = Watermark.parse(chart_date, chart_type, country)
+        result = ingest_charts(watermark, write_fs=not no_fs)
+    except (WatermarkError, IngestChartsError) as exc:
+        typer.secho(f"FAIL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(
+        "OK ingest-charts "
+        f"watermark={result['watermark']} "
+        f"entries={result['entry_count']} "
+        f"run_id={result['run_id']}"
+    )
 
 
 @app.command("enrich-spotify")
