@@ -22,16 +22,38 @@ def get_track(
     timeout: float = 30.0,
 ) -> dict[str, object]:
     """GET /v1/tracks/{id} — single-track probe (Dev Mode–friendly)."""
+    return _get_entity(access_token, "tracks", track_id, client=client, timeout=timeout)
+
+
+def get_artist(
+    access_token: str,
+    artist_id: str,
+    *,
+    client: httpx.Client | None = None,
+    timeout: float = 30.0,
+) -> dict[str, object]:
+    """GET /v1/artists/{id} — single-artist probe (Dev Mode–friendly)."""
+    return _get_entity(access_token, "artists", artist_id, client=client, timeout=timeout)
+
+
+def _get_entity(
+    access_token: str,
+    kind: str,
+    entity_id: str,
+    *,
+    client: httpx.Client | None = None,
+    timeout: float = 30.0,
+) -> dict[str, object]:
     if not access_token:
         raise SpotifyApiError("access_token is required")
-    if not track_id:
-        raise SpotifyApiError("track_id is required")
+    if not entity_id:
+        raise SpotifyApiError(f"{kind} id is required")
 
     owns_client = client is None
     http = client or httpx.Client(timeout=timeout)
     try:
         response = http.get(
-            f"{SPOTIFY_API_BASE}/tracks/{track_id}",
+            f"{SPOTIFY_API_BASE}/{kind}/{entity_id}",
             headers={"Authorization": f"Bearer {access_token}"},
         )
     finally:

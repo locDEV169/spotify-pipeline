@@ -16,6 +16,9 @@ SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 
+# Charts public/v0 (unofficial; SPEC MVP — weekly Global top songs/artists)
+CHARTS_PUBLIC_URL = "https://charts-spotify-com-service.spotify.com/public/v0/charts"
+
 
 class Settings(BaseSettings):
     """Local settings. Open ⚠️ product flags (auth/v0, BI, etc.) are intentionally absent."""
