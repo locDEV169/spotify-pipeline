@@ -103,6 +103,7 @@ def main() -> int:
                             chart_type=_type,
                             country=_country,
                             payload=_payload,
+                            bronze_dir=settings.bronze_dir,
                         )
 
                     conn = call_with_db_retry(db_url, conn, _write)
