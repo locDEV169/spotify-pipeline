@@ -5,13 +5,11 @@ Default (no ids): Charts public/v0 Weekly Global Top Songs (50) + Top Artists (5
 Optional: pass explicit track ids (legacy Brightside-style smoke).
 
 Usage:
-    python scripts/load_raw_spotify.py
-    python scripts/load_raw_spotify.py --limit 10
-    python scripts/load_raw_spotify.py --tracks-only
-    python scripts/load_raw_spotify.py --artists-only
-    python scripts/load_raw_spotify.py 003vvx7Niy0yvhvHt4a68B
+    python scripts/bronze/load_raw_spotify.py
+    python scripts/bronze/load_raw_spotify.py 003vvx7Niy0yvhvHt4a68B
+    python scripts/bronze/load_raw_spotify.py <id1> <id2>
 
-Prints run_id for: python scripts/clear_raw_spotify.py --run-id <run_id>
+Prints run_id for later: python scripts/bronze/clear_raw_spotify.py --run-id <run_id>
 Never prints secrets or access tokens.
 """
 
@@ -24,7 +22,7 @@ import time
 import uuid
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -165,11 +163,8 @@ def main() -> int:
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
-    print(
-        f"OK load_raw_spotify: inserted={inserted} "
-        f"tracks={len(track_ids)} artists={len(artist_ids)} run_id={run_id}"
-    )
-    print(f"Clear later: python scripts/clear_raw_spotify.py --run-id {run_id}")
+    print(f"OK load_raw_spotify: inserted={inserted} run_id={run_id}")
+    print(f"Clear later: python scripts/bronze/clear_raw_spotify.py --run-id {run_id}")
     return 0
 
 

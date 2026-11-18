@@ -5,9 +5,9 @@ Safe default: require --run-id.
 Dangerous wipe: --all --yes
 
 Usage:
-    python scripts/clear_raw_spotify.py --run-id <run_id>
-    python scripts/clear_raw_spotify.py --spotify-id 003vvx7Niy0yvhvHt4a68B
-    python scripts/clear_raw_spotify.py --all --yes
+    python scripts/bronze/clear_raw_spotify.py --run-id <run_id>
+    python scripts/bronze/clear_raw_spotify.py --spotify-id 003vvx7Niy0yvhvHt4a68B
+    python scripts/bronze/clear_raw_spotify.py --all --yes
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import argparse
 import sys
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 from spotify_pipeline.config import get_settings
 from spotify_pipeline.db.postgres import (
     PostgresConfigError,

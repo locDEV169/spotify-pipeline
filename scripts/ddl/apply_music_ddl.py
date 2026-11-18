@@ -6,8 +6,8 @@ Requires SUPABASE_DB_URL in .env (Dashboard → Database → Connect).
 Uses pg8000 (pure Python). Never prints the connection string / password.
 
 Usage:
-    python scripts/apply_music_ddl.py
-    python scripts/apply_music_ddl.py docs/sql/music_schema.sql
+    python scripts/ddl/apply_music_ddl.py
+    python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 _DEFAULT_SQL = _REPO_ROOT / "docs" / "sql" / "music_schema.sql"
 if str(_SRC) not in sys.path:
@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
             "FAIL: chưa có SUPABASE_DB_URL trong .env.\n"
             "Lấy URI tại Supabase Dashboard → Project Settings → Database → Connect.\n"
             "Dán vào .env (không commit), rồi chạy lại:\n"
-            "  python scripts/apply_music_ddl.py\n"
+            "  python scripts/ddl/apply_music_ddl.py\n"
             "Hoặc paste docs/sql/music_schema.sql vào Dashboard → SQL Editor → Run.",
             file=sys.stderr,
         )

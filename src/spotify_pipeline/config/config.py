@@ -4,8 +4,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict  # pyright: ignore[reportMissingImports]
 
-# src/spotify_pipeline/config.py → repo root (so scripts work even if cwd differs)
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+# src/spotify_pipeline/config/config.py → repo root (so scripts work even if cwd differs)
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _ENV_FILES = (
     _REPO_ROOT / ".env",
     Path(".env"),
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # Authorization Code flow (only needed for /v1/me/* endpoints).
     # Must match EXACTLY one Redirect URI in the Spotify Dashboard (use 127.0.0.1, not localhost).
     spotify_redirect_uri: str = "http://127.0.0.1:5000/callback"
-    # Filled once by scripts/spotify_login.py; never commit.
+    # Filled once by scripts/auth/spotify_login.py; never commit.
     spotify_refresh_token: str = ""
 
     # Supabase (SPEC append "Lưu trữ bằng Supabase") — server/scripts only.

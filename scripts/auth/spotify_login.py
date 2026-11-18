@@ -2,9 +2,9 @@
 """One-time Spotify user login (Authorization Code flow) → refresh_token.
 
 Usage (repo root, venv active, .env has SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET):
-    python scripts/spotify_login.py            # prints refresh_token
-    python scripts/spotify_login.py --save     # also writes SPOTIFY_REFRESH_TOKEN into .env
-    python scripts/spotify_login.py --no-server  # no local server: paste the callback URL manually
+    python scripts/auth/spotify_login.py            # prints refresh_token
+    python scripts/auth/spotify_login.py --save     # also writes SPOTIFY_REFRESH_TOKEN into .env
+    python scripts/auth/spotify_login.py --no-server  # no local server: paste the callback URL manually
 
 What happens:
 1. Starts a tiny HTTP server on the host/port of SPOTIFY_REDIRECT_URI (default 127.0.0.1:5000).
@@ -26,7 +26,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -195,7 +195,7 @@ def main() -> int:
             "refresh_token (dán vào .env dòng SPOTIFY_REFRESH_TOKEN=..., KHÔNG commit):"
         )
         print(refresh)
-    print("Xong. Test tiếp: python scripts/check_spotify_user.py")
+    print("Xong. Test tiếp: python scripts/check/check_spotify_user.py")
     return 0
 
 

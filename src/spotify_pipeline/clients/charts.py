@@ -1,4 +1,4 @@
-"""SPEC C3 — Fetch Charts public/v0; parse trackUri / artistUri.
+"""SPEC C3 — Fetch Charts public/v0; parse trackUri / artistUri / chart views.
 
 MVP: unauthenticated weekly Global Top Songs + Top Artists (≈50 each).
 auth/v0 deferred (⚠️). Learning/demo only — Charts is unofficial.
@@ -12,8 +12,9 @@ import httpx
 
 from spotify_pipeline.config import CHARTS_PUBLIC_URL
 
-_ALIAS_SONGS = "REGIONAL_GLOBAL_WEEKLY"
-_ALIAS_ARTISTS = "ARTIST_GLOBAL_WEEKLY"
+ALIAS_SONGS = "REGIONAL_GLOBAL_WEEKLY"
+ALIAS_ARTISTS = "ARTIST_GLOBAL_WEEKLY"
+ALIAS_ALBUMS = "ALBUM_GLOBAL_WEEKLY"
 
 
 class ChartsError(RuntimeError):
@@ -56,7 +57,7 @@ def fetch_public_charts(
     return payload
 
 
-def _view_by_alias(payload: dict[str, Any], alias: str) -> dict[str, Any]:
+def view_by_alias(payload: dict[str, Any], alias: str) -> dict[str, Any]:
     views = payload.get("chartEntryViewResponses") or []
     for view in views:
         if not isinstance(view, dict):
@@ -68,6 +69,22 @@ def _view_by_alias(payload: dict[str, Any], alias: str) -> dict[str, Any]:
     raise ChartsError(f"charts public/v0: missing alias {alias}")
 
 
+def chart_view_watermark(view: dict[str, Any]) -> tuple[str | None, str, str]:
+    """Return (chart_date, chart_type, country) for a chartEntryViewResponse."""
+    display = view.get("displayChart") or {}
+    meta = display.get("chartMetadata") or {}
+    dims = meta.get("dimensions") or {}
+    chart_date = display.get("date") or dims.get("latestDate")
+    alias = str(meta.get("alias") or "")
+    country = str(dims.get("country") or "GLOBAL").lower()
+    chart_type = {
+        ALIAS_SONGS: "weekly_top_songs",
+        ALIAS_ARTISTS: "weekly_top_artists",
+        ALIAS_ALBUMS: "weekly_top_albums",
+    }.get(alias, alias.lower() or "unknown")
+    return (str(chart_date) if chart_date else None, chart_type, country)
+
+
 def weekly_global_top_song_track_ids(
     payload: dict[str, Any] | None = None,
     *,
@@ -76,7 +93,7 @@ def weekly_global_top_song_track_ids(
 ) -> list[str]:
     """Ordered unique Spotify track ids from Weekly Top Songs: Global."""
     data = payload if payload is not None else fetch_public_charts(client=client)
-    view = _view_by_alias(data, _ALIAS_SONGS)
+    view = view_by_alias(data, ALIAS_SONGS)
     ids: list[str] = []
     for entry in view.get("entries") or []:
         if not isinstance(entry, dict):
@@ -99,7 +116,7 @@ def weekly_global_top_artist_ids(
 ) -> list[str]:
     """Ordered unique Spotify artist ids from Weekly Top Artists: Global."""
     data = payload if payload is not None else fetch_public_charts(client=client)
-    view = _view_by_alias(data, _ALIAS_ARTISTS)
+    view = view_by_alias(data, ALIAS_ARTISTS)
     ids: list[str] = []
     for entry in view.get("entries") or []:
         if not isinstance(entry, dict):

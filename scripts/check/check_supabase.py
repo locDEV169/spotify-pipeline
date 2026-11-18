@@ -2,7 +2,7 @@
 """Local smoke-check: Supabase create_client + Storage list_buckets.
 
 Usage (from repo root, with `.env` filled):
-    python scripts/check_supabase.py
+    python scripts/check/check_supabase.py
 
 Proves URL + service_role + network work. Does not require Silver/Gold tables.
 Never prints SUPABASE_SERVICE_ROLE_KEY or DB passwords.
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -28,7 +28,7 @@ except ModuleNotFoundError:
         "Activate the project venv first, then retry:\n"
         "  source .venv/Scripts/activate   # Git Bash\n"
         '  python -m pip install -e ".[dev]"\n'
-        f"Or run:  {venv_python} scripts/check_supabase.py",
+        f"Or run:  {venv_python} scripts/check/check_supabase.py",
         file=sys.stderr,
     )
     raise SystemExit(2) from None

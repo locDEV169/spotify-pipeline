@@ -123,7 +123,13 @@ spotify-data-pipeline/
   src/spotify_pipeline/
     __init__.py
     cli.py                      # run / backfill / --report / --offline
-    config.py                   # .env + settings (batch sizes, paths)
+    config/                     # .env + settings (batch sizes, paths)
+      __init__.py
+      config.py
+    db/                         # server-side Supabase / Postgres
+      __init__.py
+      connection.py             # create_client (URL + service_role)
+      postgres.py               # pg8000 + SUPABASE_DB_URL
     clients/                    # ← I/O only (tách riêng)
       __init__.py
       http.py                   # shared session, retry / Retry-After
@@ -159,8 +165,10 @@ spotify-data-pipeline/
     silver/                     # sqlite / curated
     gold/
   scripts/                      # local smoke only (cloud scripts deferred)
-    check_spotify.py
-    check_reccobeats.py
+    check/                      # check_spotify / check_supabase / …
+    bronze/                     # load_raw_* / clear_raw_*
+    ddl/                        # apply_music_ddl
+    auth/                       # spotify_login
   tests/
     fixtures/
       charts_public_v0_weekly.json
@@ -242,7 +250,7 @@ flowchart LR
 
 | # | Component | Path (tách riêng) | Responsibility | Depends on |
 |---|-----------|-------------------|----------------|------------|
-| C1 | Config / secrets | `config.py` | Load Spotify creds, paths, batch sizes | — |
+| C1 | Config / secrets | `config/` | Load Spotify creds, paths, batch sizes | — |
 | C2 | HTTP retry | `clients/http.py` | Shared session; 429 + Retry-After | C1 |
 | C3 | Charts client | `clients/charts.py` | Fetch `public/v0`; parse `trackUri`, ranks | C2 |
 | C4 | Spotify auth/client | `clients/spotify_auth.py`, `spotify.py` | Token ~1h; tracks/artists; batch hoặc `/{id}` | C2 |
@@ -474,8 +482,8 @@ CI: offline tests only.
 | 2026-11-17 | Bổ sung mục "Lưu trữ bằng Supabase" (đề xuất của mình, 17/11/2026, Asia/Bangkok). Các mục phía trên không bị sửa hay xóa. |
 | 2026-11-17 | Field notes: live probe Charts / Web API / ReccoBeats; trạng thái schema Supabase (chỉ weather); DDL deltas (`run_id`/`source`, indexes); config Supabase đã có trong code. **Không** chạy DDL; **không** đụng bảng weather. |
 | 2026-11-17 | Quyết định: bảng nhạc nằm schema Postgres **`music`** (tách khỏi weather/`public`). Chỉ sync `docs/SPEC.md` (không Notion). DDL vẫn **chưa chạy**. |
-| 2026-11-17 | Thêm `docs/sql/music_schema.sql` + `scripts/apply_music_ddl.py` (schema `music.*`, không đụng weather). Apply cần `SUPABASE_DB_URL` — **chưa apply** nếu URI chưa có trong `.env`. |
-| 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/apply_music_ddl.py`. |
+| 2026-11-17 | Thêm `docs/sql/music_schema.sql` + `scripts/ddl/apply_music_ddl.py` (schema `music.*`, không đụng weather). Apply cần `SUPABASE_DB_URL` — **chưa apply** nếu URI chưa có trong `.env`. |
+| 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/ddl/apply_music_ddl.py`. |
 
 ---
 
@@ -731,7 +739,7 @@ Có thể đổi các view trên thành `MATERIALIZED VIEW` rồi `REFRESH` sau 
 
 ### Cấu hình (`.env`)
 
-**Đã có trong code (field notes 17/11/2026):** `Settings` trong `config.py` đọc `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`; `.env.example` đã document placeholders; `get_supabase_client()` + `scripts/check_supabase.py` dùng URL + service_role.
+**Đã có trong code (field notes 17/11/2026):** `Settings` trong `config.py` đọc `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`; `.env.example` đã document placeholders; `get_supabase_client()` + `scripts/check/check_supabase.py` dùng URL + service_role.
 
 Thêm vào `.env` local, **không commit**, không dán key vào chat / SPEC:
 
@@ -856,15 +864,15 @@ CREATE INDEX IF NOT EXISTS idx_bridge_track_artist_artist_id ON music.bridge_tra
 | File | Vai trò |
 |------|---------|
 | [`docs/sql/music_schema.sql`](sql/music_schema.sql) | DDL đầy đủ: `CREATE SCHEMA music` + tables/indexes/views `music.*` (+ `run_id`/`source`, `peak_rank` nullable, `spotify_track_ids`, Gold views) |
-| [`scripts/apply_music_ddl.py`](../scripts/apply_music_ddl.py) | Chạy SQL qua `SUPABASE_DB_URL` (`pg8000`); abort nếu SQL đụng weather |
+| [`scripts/ddl/apply_music_ddl.py`](../scripts/ddl/apply_music_ddl.py) | Chạy SQL qua `SUPABASE_DB_URL` (`pg8000`); abort nếu SQL đụng weather |
 
 ```bash
 # 1) Thêm SUPABASE_DB_URL vào .env (Dashboard → Database → Connect → URI)
 # 2) Apply
-python scripts/apply_music_ddl.py
+python scripts/ddl/apply_music_ddl.py
 # hoặc paste music_schema.sql vào Dashboard → SQL Editor → Run
 ```
 
-**Trạng thái (17/11/2026):** `python scripts/apply_music_ddl.py` đã **exit 0** — schema `music` có 10 objects (`raw_charts`, `raw_spotify`, `raw_reccobeats`, `fact_chart`, `dim_track`, `dim_artist`, `bridge_track_artist`, `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`). Weather `public` vẫn còn đủ 3 bảng. Idempotent: chạy lại script an toàn (`IF NOT EXISTS`). **Không** Notion. Rotate `service_role` vẫn do user trên Dashboard nếu key từng lộ.
+**Trạng thái (17/11/2026):** `python scripts/ddl/apply_music_ddl.py` đã **exit 0** — schema `music` có 10 objects (`raw_charts`, `raw_spotify`, `raw_reccobeats`, `fact_chart`, `dim_track`, `dim_artist`, `bridge_track_artist`, `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`). Weather `public` vẫn còn đủ 3 bảng. Idempotent: chạy lại script an toàn (`IF NOT EXISTS`). **Không** Notion. Rotate `service_role` vẫn do user trên Dashboard nếu key từng lộ.
 
 > PostgREST/supabase-py: nếu query `music.*` qua API client, thêm schema `music` vào **Exposed schemas** trong Dashboard API settings.

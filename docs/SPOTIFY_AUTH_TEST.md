@@ -6,8 +6,8 @@
 
 | Muốn gọi | Loại token | Cần trình duyệt? | Script |
 |---|---|---|---|
-| `/v1/tracks/{id}`, `/v1/artists/{id}`, `/v1/albums/{id}` (metadata cho pipeline) | Client Credentials | Không | `scripts/check_spotify.py` |
-| `/v1/me`, `/v1/me/playlists`, `/v1/me/top/tracks` (dữ liệu của chính bạn) | Authorization Code (user login) | **Chỉ 1 lần** để lấy `refresh_token` | `scripts/spotify_login.py` → `scripts/check_spotify_user.py` |
+| `/v1/tracks/{id}`, `/v1/artists/{id}`, `/v1/albums/{id}` (metadata cho pipeline) | Client Credentials | Không | `scripts/check/check_spotify.py` |
+| `/v1/me`, `/v1/me/playlists`, `/v1/me/top/tracks` (dữ liệu của chính bạn) | Authorization Code (user login) | **Chỉ 1 lần** để lấy `refresh_token` | `scripts/auth/spotify_login.py` → `scripts/check/check_spotify_user.py` |
 
 Token Client Credentials gọi `/v1/me/...` **luôn trả 401** — đó là lỗi bạn gặp lúc đầu.
 
@@ -49,7 +49,7 @@ Kỳ vọng: tất cả test pass (bao gồm `tests/test_spotify_auth.py`).
 ## 4. Test Client Credentials (metadata)
 
 ```bash
-python scripts/check_spotify.py
+python scripts/check/check_spotify.py
 ```
 
 Kỳ vọng:
@@ -62,19 +62,19 @@ Spotify smoke-check passed.
 ## 5. Login 1 lần để lấy refresh_token
 
 ```bash
-python scripts/spotify_login.py --save
+python scripts/auth/spotify_login.py --save
 ```
 
 1. Trình duyệt tự mở trang Spotify → đăng nhập → **Agree**.
 2. Trình duyệt hiện "Đã nhận code. Quay lại terminal."
 3. Terminal in `OK access_token…`, `OK scope…`, và ghi `SPOTIFY_REFRESH_TOKEN` vào `.env`.
 
-Không muốn mở server? `python scripts/spotify_login.py --no-server` → sau khi Agree, trang báo "can't be reached" là bình thường; copy **nguyên URL** trên thanh địa chỉ dán vào terminal.
+Không muốn mở server? `python scripts/auth/spotify_login.py --no-server` → sau khi Agree, trang báo "can't be reached" là bình thường; copy **nguyên URL** trên thanh địa chỉ dán vào terminal.
 
 ## 6. Test API của user (không cần trình duyệt nữa)
 
 ```bash
-python scripts/check_spotify_user.py
+python scripts/check/check_spotify_user.py
 ```
 
 Kỳ vọng:
@@ -104,7 +104,7 @@ curl -sS -X POST "https://accounts.spotify.com/api/token" \
   -d "refresh_token=<SPOTIFY_REFRESH_TOKEN>"
 ```
 
-Copy `access_token` từ JSON. Nếu response có **`refresh_token` mới**, cập nhật `.env` (chạy lại `python scripts/spotify_login.py --save`) — nếu không, refresh sau này có thể `invalid_grant`.
+Copy `access_token` từ JSON. Nếu response có **`refresh_token` mới**, cập nhật `.env` (chạy lại `python scripts/auth/spotify_login.py --save`) — nếu không, refresh sau này có thể `invalid_grant`.
 
 #### B) GET giống script
 
