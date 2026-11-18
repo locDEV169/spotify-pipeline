@@ -43,12 +43,14 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
 1. **Language:** Python 3.12+ (matches DE learning path).
 2. **MVP chart source:** Charts `public/v0` weekly Global top 50 (unauthenticated) — `streams = NULL`.
 3. **Daily Top 200 + streams (`auth/v0`):** out of MVP until Bearer-user access and ToS acceptance are confirmed ⚠️.
-4. **Storage MVP:** local filesystem Bronze (JSON/JSONL) + **SQLite** Silver/Gold.
-   - **Runtime override (18/11/2026):** Bronze store of record = Postgres `music.raw_*` (jsonb + `ingested_at`). C8 = `pipeline/bronze.py` writers. Local `data/bronze/` = optional dual-write JSON envelope (Assumptions #4) — không thay SoR.
+4. **Storage MVP (locked 18/11/2026, Q-C=1):**
+   - **SoR = Postgres `music.*`** (Supabase): Bronze `raw_*` jsonb + `ingested_at`; Silver/Gold tables/views per DDL (`docs/sql/music_schema.sql`).
+   - Local `data/bronze/` = **optional dual-write** JSON envelope only — không thay SoR.
+   - Historical note: early draft used FS + SQLite; that is **not** MVP SoR anymore.
 5. **Orchestration MVP:** CLI (+ optional OS cron later). No Airflow/Prefect yet ⚠️.
 6. **Secrets:** `.env` locally; never commit. Secret-store product TBD ⚠️.
 7. **BI:** deferred; Gold queries printable via CLI / optional notebook ⚠️.
-8. **Spotify app mode:** implement **both** batch `?ids=` and single `/{id}` paths; detect which works on the configured Client ID ⚠️.
+8. **Spotify app mode (locked 18/11/2026, Q-D=2):** MVP = **single-ID only** — `GET /v1/tracks/{id}` and `GET /v1/artists/{id}`. Batch `?ids=` (≤50) is **deferred** until Client ID probe (checklist F5); not required for Stage 4 / Bronze complete.
 9. **Scope country:** Global first; multi-country later.
 
 ---
@@ -60,7 +62,7 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
 | Language | Python 3.12+ |
 | HTTP | `httpx` |
 | Config | `pydantic-settings` + `.env` |
-| Storage | `pathlib` Bronze files + SQLite |
+| Storage | Postgres `music.*` (SoR) + optional FS Bronze dual-write |
 | CLI | `typer` or `argparse` |
 | Tests | `pytest` + recorded fixtures (no live network in CI) |
 | Packaging | `uv` or `pip` + `pyproject.toml` |
@@ -136,7 +138,7 @@ spotify-data-pipeline/
       http.py                   # shared session, retry / Retry-After
       charts.py                 # public/v0 (+ stub auth/v0)
       spotify_auth.py           # Client Credentials, token ~1h
-      spotify.py                # tracks/artists; batch hoặc /{id}
+      spotify.py                # tracks/artists via /{id} (MVP); batch deferred
       reccobeats.py             # GET /v1/audio-features?ids= ≤40
     models/                     # ← validate only (tách riêng)
       __init__.py
@@ -256,7 +258,7 @@ flowchart LR
 | C1 | Config / secrets | `config/` | Load Spotify creds, paths, batch sizes | — |
 | C2 | HTTP retry | `clients/http.py` | Shared session; 429 + Retry-After | C1 |
 | C3 | Charts client | `clients/charts.py` | Fetch `public/v0`; parse `trackUri`, ranks | C2 |
-| C4 | Spotify auth/client | `clients/spotify_auth.py`, `spotify.py` | Token ~1h; tracks/artists; batch hoặc `/{id}` | C2 |
+| C4 | Spotify auth/client | `clients/spotify_auth.py`, `spotify.py` | Token ~1h; tracks/artists via `/{id}` (MVP); batch `?ids=` deferred (Q-D=2) | C2 |
 | C5 | ReccoBeats client | `clients/reccobeats.py` | Batch ≤40 `?ids=`; map IDs; 429 | C2 |
 | C6 | Models | `models/*` | Validate ChartEntry / Track / Artist / AudioFeatures | — |
 | C7 | Watermark | `state/watermark.py` | `(chart_date, chart_type, country)` | C1 |
@@ -334,8 +336,8 @@ flowchart LR
 
 ### Spotify
 - Auth: `POST https://accounts.spotify.com/api/token` (`client_credentials`), token ~3600s.
-- Prefer `GET /v1/tracks?ids=` (max 50) / `GET /v1/artists?ids=` (max 50) when Client ID still allows batch.
-- Fallback: `GET /v1/tracks/{id}`, `GET /v1/artists/{id}` for new Dev Mode (post 11/02/2026 limits).
+- **MVP (Q-D=2):** `GET /v1/tracks/{id}`, `GET /v1/artists/{id}` only.
+- **Deferred:** `GET /v1/tracks?ids=` / `GET /v1/artists?ids=` (max 50) — optional later after Client ID probe (checklist F5); not required for Bronze Stage 4.
 - Albums: use embedded `track.album`; optional `GET /v1/albums/{id}` only if needed.
 
 ### ReccoBeats
@@ -454,7 +456,7 @@ CI: offline tests only.
 
 ## Open Questions (blocking / high impact)
 
-1. Spotify Client ID mode: Extended Quota vs Dev Mode old vs Dev Mode new? → batch vs `/{id}`.
+1. Spotify Client ID mode: Extended Quota vs Dev Mode? → batch vs `/{id}`. **Closed for MVP (18/11/2026, Q-D=2):** single `/{id}` only. Batch `?ids=` deferred until checklist F5 probe; not blocking Bronze Stage 4.
 2. On that Client ID, are `track.popularity`, `artist.genres`, `followers`, `artist.popularity` still returned? → **Answered for current Dev Mode app (field notes 17/11/2026):** absent / always null on this Client ID; Gold popularity scatter **not feasible** here. Other quota modes still ⚠️.
 3. Accept Charts `auth/v0` daily (Bearer user) for streams despite ToS risk, or stay weekly `public/v0` + `streams=NULL`?
 4. If no `auth/v0`: stay weekly-only, or revive kworb fallback?
@@ -488,6 +490,7 @@ CI: offline tests only.
 | 2026-11-17 | Thêm `docs/sql/music_schema.sql` + `scripts/ddl/apply_music_ddl.py` (schema `music.*`, không đụng weather). Apply cần `SUPABASE_DB_URL` — **chưa apply** nếu URI chưa có trong `.env`. |
 | 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/ddl/apply_music_ddl.py`. |
 | 2026-11-18 | Stage 4 fidelity: `extract_ids` từ Bronze `raw_charts`; enrich + `run` Bronze-only logical fan-out (Q-A=2, Q-B=2). Coverage/`features_found` Silver **hoãn**. Checklist: `docs/CHECKLIST_SPEC_GAPS.md`. |
+| 2026-11-18 | Doc lock: **Q-C=1** Postgres `music.*` SoR (Assumption #4 + Tech Stack); **Q-D=2** single-ID Spotify MVP (Assumption #8 + Open Q1 closed for MVP); README synced. Batch `?ids=` / Silver builders vẫn deferred. |
 
 ---
 

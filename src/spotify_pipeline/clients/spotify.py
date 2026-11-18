@@ -1,4 +1,4 @@
-"""SPEC C4 — Tracks/artists; prefer batch ?ids= with /{id} fallback. Never call audio-features.
+"""SPEC C4 — Tracks/artists via single /{id} (MVP, Q-D=2). Batch ?ids= deferred. Never call audio-features.
 
 Track endpoint: https://developer.spotify.com/documentation/web-api/reference/get-track
 """

@@ -1,6 +1,6 @@
 # Spotify Charts → Web API → ReccoBeats Pipeline
 
-**Status:** Bronze Stage 4 fidelity in progress — C7–C9 + extract-from-Bronze + `run` (Bronze-only). Silver/Gold/backfill still stubs.  
+**Status:** Bronze Stage 4 locked for MVP — C7–C9 + extract-from-Bronze + `run` (Bronze-only). SoR = Postgres `music.*`. Silver/Gold/backfill/`--offline` still stubs. Spotify = single `/{id}` (Q-D=2).  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS.  
 **Gaps checklist:** [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md)
 
@@ -22,13 +22,14 @@ New Spotify developer apps cannot use Audio Features / Audio Analysis ([Spotify 
 
 **Not** on the locked path (documented fallbacks only): kworb, Last.fm, Kaggle dumps, Deezer.
 
-### Intended MVP (planned)
+### Intended MVP (locked)
 
 - Charts **`public/v0`** — weekly Global top 50 (unauthenticated); `streams = NULL`
-- Enrichment → Bronze (raw JSON/JSONL) + **SQLite** Silver/Gold
-- One CLI cycle per watermark `(chart_date, chart_type, country)`
-- Gold summary: coverage (`features_found`), movers, mood (rows with features only)
-- Offline mode from fixtures for CI (no live network)
+- Bronze SoR = Postgres `music.raw_*` (+ optional FS dual-write under `data/bronze/`)
+- Silver/Gold target = Postgres `music.*` (DDL ready; builders deferred)
+- Spotify enrich = single `/{id}` (batch `?ids=` deferred)
+- One CLI cycle per watermark `(chart_date, chart_type, country)` via `run` (Bronze-only today)
+- Later: Gold summary (`features_found`, movers, mood) + offline fixtures
 
 Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Airflow/Prefect, and BI dashboards are **out of MVP / undecided** (see [Open questions](#open-questions)).
 
@@ -60,19 +61,19 @@ Charts public/v0 ──► Bronze ──► extract IDs ──┬──► Spoti
 
 Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6** were missing (new-release lag). The pipeline must retain those ranks with `features_found=false` and report coverage explicitly.
 
-## Stack (scaffold)
+## Stack (MVP)
 
 | Layer | Choice |
 |-------|--------|
 | Language | Python 3.12+ |
 | HTTP | `httpx` |
 | Config | `pydantic-settings` + `.env` |
-| Storage | filesystem Bronze + SQLite Silver/Gold (stdlib) |
+| Storage | Postgres `music.*` (SoR) + optional FS Bronze dual-write |
 | CLI | `typer` |
 | Tests | `pytest` (+ recorded fixtures later) |
 | Packaging | `pip` + `venv` + `pyproject.toml` |
 
-Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/` (stubs raise `NotImplementedError` until implemented per SPEC).
+Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/`. Silver/Gold/analytics modules still stub until implemented per SPEC.
 
 
 ## Scripts layout
@@ -173,14 +174,14 @@ cp .env.example .env            # optional until live Spotify calls
 pytest -q
 ```
 
-Scaffold smoke tests should pass. Pipeline commands are registered but **not implemented** yet:
+Unit tests should pass (`pytest -q`). Bronze commands work today; Silver/Gold/`--offline` still stub:
 
 ```bash
 python -m spotify_pipeline run \
   --chart-date 2026-11-12 \
   --chart-type weekly_top_songs \
   --country global
-# → NotImplementedError until C9–C14 are built
+# → ingest → extract IDs from Bronze → enrich-spotify → enrich-reccobeats
 ```
 
 Env vars (see `.env.example`):
@@ -195,7 +196,7 @@ Env vars (see `.env.example`):
 | ReccoBeats coverage gaps (E2E 26/40; top ranks missing) | High | LEFT JOIN + backfill + coverage report |
 | ReccoBeats AS-IS / possible shutdown | High | Bronze cache + offline fixtures |
 | Charts unofficial + ToS scrape restrictions | High | Learning-only scope; no commercial scrape narrative |
-| Spotify Dev Mode field/endpoint removals | Medium | Dual-path batch/`/{id}`; nullable fields |
+| Spotify Dev Mode field/endpoint removals | Medium | Single-ID `/{id}` MVP; nullable fields; batch deferred |
 | Unpublished rate limits | Medium | `Retry-After`, low concurrency, cache |
 | Feature fidelity ≠ Spotify Audio Features / Kaggle | Medium | Never claim parity |
 
@@ -203,7 +204,7 @@ Env vars (see `.env.example`):
 
 These are **undecided** — do not treat as product defaults:
 
-1. Spotify Client ID mode (Extended Quota vs Dev Mode) → batch vs single-ID behavior
+1. Spotify Client ID mode → batch vs single-ID — **MVP locked (Q-D=2):** single `/{id}` only; batch deferred until probe
 2. Whether `track.popularity` / `artist.genres` / `followers` / `artist.popularity` still return on that app
 3. Charts `auth/v0` (daily + streams) vs stay on weekly `public/v0`
 4. If no `auth/v0`: weekly-only forever, or revive a documented fallback (e.g. kworb)?
