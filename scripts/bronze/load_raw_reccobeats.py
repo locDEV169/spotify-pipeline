@@ -16,7 +16,6 @@ Never prints secrets.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 import uuid
@@ -77,6 +76,7 @@ def main() -> int:
         connect_postgres,
         require_db_url,
     )
+    from spotify_pipeline.pipeline.bronze import write_raw_reccobeats
 
     settings = get_settings()
     batch_size = settings.reccobeats_batch_size or 40
@@ -113,7 +113,14 @@ def main() -> int:
                 for i, batch in enumerate(batches, start=1):
                     payload = get_audio_features(batch, client=http)
                     hits, misses = audio_features_hits_misses(batch, payload)
-                    _insert_raw(conn, run_id, batch, payload)
+                    write_raw_reccobeats(
+                        conn,
+                        run_id=run_id,
+                        source=_SOURCE,
+                        endpoint=_ENDPOINT,
+                        spotify_track_ids=batch,
+                        payload=payload,
+                    )
                     inserted += 1
                     print(
                         f"OK batch {i}/{len(batches)}: "
@@ -140,28 +147,6 @@ def main() -> int:
         f"Clear later: python scripts/bronze/clear_raw_reccobeats.py --run-id {run_id}"
     )
     return 0
-
-
-def _insert_raw(conn, run_id: str, spotify_track_ids: list[str], payload: dict) -> None:
-    conn.run(
-        """
-        INSERT INTO music.raw_reccobeats
-            (run_id, source, endpoint, spotify_track_ids, payload)
-        VALUES
-            (
-              :run_id,
-              :source,
-              :endpoint,
-              :spotify_track_ids,
-              CAST(:payload AS jsonb)
-            )
-        """,
-        run_id=run_id,
-        source=_SOURCE,
-        endpoint=_ENDPOINT,
-        spotify_track_ids=spotify_track_ids,
-        payload=json.dumps(payload, ensure_ascii=False),
-    )
 
 
 if __name__ == "__main__":

@@ -16,7 +16,6 @@ Never prints secrets or access tokens.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 import uuid
@@ -86,6 +85,7 @@ def main() -> int:
         connect_postgres,
         require_db_url,
     )
+    from spotify_pipeline.pipeline.bronze import write_raw_spotify
 
     settings = get_settings()
     if not settings.spotify_client_id or not settings.spotify_client_secret:
@@ -135,7 +135,14 @@ def main() -> int:
             try:
                 for track_id in track_ids:
                     payload = get_track(access, track_id, client=http)
-                    _insert_raw(conn, run_id, "track", track_id, payload)
+                    write_raw_spotify(
+                        conn,
+                        run_id=run_id,
+                        source=_SOURCE,
+                        entity="track",
+                        spotify_id=track_id,
+                        payload=payload,
+                    )
                     inserted += 1
                     print(f"OK track: {track_id} | {payload.get('name', '?')}")
                     if args.sleep:
@@ -143,7 +150,14 @@ def main() -> int:
 
                 for artist_id in artist_ids:
                     payload = get_artist(access, artist_id, client=http)
-                    _insert_raw(conn, run_id, "artist", artist_id, payload)
+                    write_raw_spotify(
+                        conn,
+                        run_id=run_id,
+                        source=_SOURCE,
+                        entity="artist",
+                        spotify_id=artist_id,
+                        payload=payload,
+                    )
                     inserted += 1
                     print(f"OK artist: {artist_id} | {payload.get('name', '?')}")
                     if args.sleep:
@@ -166,22 +180,6 @@ def main() -> int:
     print(f"OK load_raw_spotify: inserted={inserted} run_id={run_id}")
     print(f"Clear later: python scripts/bronze/clear_raw_spotify.py --run-id {run_id}")
     return 0
-
-
-def _insert_raw(conn, run_id: str, entity: str, spotify_id: str, payload: dict) -> None:
-    conn.run(
-        """
-        INSERT INTO music.raw_spotify
-            (run_id, source, entity, spotify_id, payload)
-        VALUES
-            (:run_id, :source, :entity, :spotify_id, CAST(:payload AS jsonb))
-        """,
-        run_id=run_id,
-        source=_SOURCE,
-        entity=entity,
-        spotify_id=spotify_id,
-        payload=json.dumps(payload, ensure_ascii=False),
-    )
 
 
 if __name__ == "__main__":

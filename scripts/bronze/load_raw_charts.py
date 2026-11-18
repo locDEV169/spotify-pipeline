@@ -16,7 +16,6 @@ Never prints secrets.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import uuid
 from pathlib import Path
@@ -58,6 +57,7 @@ def main() -> int:
         connect_postgres,
         require_db_url,
     )
+    from spotify_pipeline.pipeline.bronze import write_raw_charts
 
     settings = get_settings()
     try:
@@ -91,22 +91,14 @@ def main() -> int:
                         "displayChart": view.get("displayChart"),
                         "entries": entries,
                     }
-                    conn.run(
-                        """
-                        INSERT INTO music.raw_charts
-                            (run_id, source, chart_date, chart_type, country, payload)
-                        VALUES
-                            (
-                              :run_id, :source, CAST(:chart_date AS date),
-                              :chart_type, :country, CAST(:payload AS jsonb)
-                            )
-                        """,
+                    write_raw_charts(
+                        conn,
                         run_id=run_id,
                         source=_SOURCE,
                         chart_date=chart_date,
                         chart_type=chart_type,
                         country=country,
-                        payload=json.dumps(row_payload, ensure_ascii=False),
+                        payload=row_payload,
                     )
                     inserted += 1
                     print(

@@ -83,6 +83,8 @@ Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/
 | `scripts/ddl/` | `apply_music_ddl` |
 | `scripts/auth/` | `spotify_login` |
 
+**Bronze store of record:** Postgres `music.raw_*` (jsonb + `ingested_at`) via `pipeline/bronze.py` (C8). Local filesystem `data/bronze/` (SPEC Assumptions #4) is deferred.
+
 ## Connect DB supabase
 ```bash
 source .venv/bin/activate       # macOS / Linux

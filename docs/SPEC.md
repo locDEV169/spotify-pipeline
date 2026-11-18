@@ -44,6 +44,7 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
 2. **MVP chart source:** Charts `public/v0` weekly Global top 50 (unauthenticated) — `streams = NULL`.
 3. **Daily Top 200 + streams (`auth/v0`):** out of MVP until Bearer-user access and ToS acceptance are confirmed ⚠️.
 4. **Storage MVP:** local filesystem Bronze (JSON/JSONL) + **SQLite** Silver/Gold.
+   - **Runtime override (18/11/2026):** Bronze store of record = Postgres `music.raw_*` (jsonb + `ingested_at`); local `data/bronze/` filesystem tạm hoãn. C8 = `pipeline/bronze.py` writers.
 5. **Orchestration MVP:** CLI (+ optional OS cron later). No Airflow/Prefect yet ⚠️.
 6. **Secrets:** `.env` locally; never commit. Secret-store product TBD ⚠️.
 7. **BI:** deferred; Gold queries printable via CLI / optional notebook ⚠️.
