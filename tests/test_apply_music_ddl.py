@@ -7,7 +7,7 @@ _SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-import apply_music_ddl  # noqa: E402
+import apply_music_ddl
 
 
 def test_split_sql_skips_comments_and_splits_statements() -> None:

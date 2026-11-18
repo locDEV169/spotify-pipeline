@@ -118,7 +118,9 @@ def main(argv: list[str] | None = None) -> int:
 
     sql = sql_path.read_text(encoding="utf-8")
     if _FORBIDDEN.search(sql):
-        print("FAIL: SQL chứa tham chiếu weather / DROP public — abort.", file=sys.stderr)
+        print(
+            "FAIL: SQL chứa tham chiếu weather / DROP public — abort.", file=sys.stderr
+        )
         return 1
     if "CREATE SCHEMA IF NOT EXISTS music" not in sql:
         print("FAIL: SQL thiếu CREATE SCHEMA music — abort.", file=sys.stderr)
@@ -133,7 +135,9 @@ def main(argv: list[str] | None = None) -> int:
                     conn.run(stmt)
                 except Exception as exc:
                     preview = " ".join(stmt.split())[:120]
-                    raise RuntimeError(f"statement {i}/{len(statements)} failed near: {preview}") from exc
+                    raise RuntimeError(
+                        f"statement {i}/{len(statements)} failed near: {preview}"
+                    ) from exc
             rows = conn.run(
                 """
                 SELECT table_name
@@ -155,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         finally:
             conn.close()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"FAIL: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
@@ -164,9 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"OK DDL applied: schema=music tables/views={len(names)}")
     print("OK music objects: " + ", ".join(names))
     wnames = [r[0] for r in weather]
-    print(
-        "OK weather untouched: " + (", ".join(wnames) if wnames else "(none listed)")
-    )
+    print("OK weather untouched: " + (", ".join(wnames) if wnames else "(none listed)"))
     print("Music SQL migrate passed.")
     return 0
 

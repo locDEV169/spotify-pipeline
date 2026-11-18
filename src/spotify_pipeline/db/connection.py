@@ -15,7 +15,7 @@ from supabase import Client, create_client
 from spotify_pipeline.config import Settings, get_settings
 
 if TYPE_CHECKING:
-    pass
+    pass  # noqa: TC005
 
 
 class SupabaseConfigError(RuntimeError):

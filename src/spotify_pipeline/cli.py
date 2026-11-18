@@ -17,14 +17,18 @@ def _not_implemented(name: str) -> None:
 
 @app.command("run")
 def run(
-    chart_date: str = typer.Option(..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"),
+    chart_date: str = typer.Option(
+        ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
+    ),
     chart_type: str = typer.Option(
         "weekly_top_songs",
         "--chart-type",
         help="Chart type, e.g. weekly_top_songs",
     ),
     country: str = typer.Option("global", "--country", help="Chart country / region"),
-    offline: bool = typer.Option(False, "--offline", help="Use fixtures only (no live network)"),
+    offline: bool = typer.Option(
+        False, "--offline", help="Use fixtures only (no live network)"
+    ),
     report: bool = typer.Option(False, "--report", help="Print Gold summary after run"),
 ) -> None:
     """Full pipeline for one watermark (SPEC C14 / C9–C13)."""
@@ -45,7 +49,7 @@ def ingest_charts(
 
 @app.command("enrich-spotify")
 def enrich_spotify(
-    chart_date: Optional[str] = typer.Option(None, "--chart-date"),
+    chart_date: Optional[str] = typer.Option(None, "--chart-date"),  # noqa: UP045
 ) -> None:
     """SPEC C9 — enrich Spotify metadata → Bronze."""
     _ = chart_date
@@ -54,7 +58,7 @@ def enrich_spotify(
 
 @app.command("enrich-reccobeats")
 def enrich_reccobeats(
-    chart_date: Optional[str] = typer.Option(None, "--chart-date"),
+    chart_date: Optional[str] = typer.Option(None, "--chart-date"),  # noqa: UP045
 ) -> None:
     """SPEC C9 — enrich ReccoBeats features → Bronze."""
     _ = chart_date
