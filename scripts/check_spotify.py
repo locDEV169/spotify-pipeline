@@ -27,7 +27,7 @@ except ModuleNotFoundError:
         "FAIL: dependency `httpx` not found in this Python.\n"
         "Activate the project venv first, then retry:\n"
         "  source .venv/Scripts/activate   # Git Bash\n"
-        "  python -m pip install -e \".[dev]\"\n"
+        '  python -m pip install -e ".[dev]"\n'
         f"Or run:  {venv_python} scripts/check_spotify.py",
         file=sys.stderr,
     )
@@ -68,9 +68,12 @@ def main() -> int:
             name = track.get("name", "?")
             track_id = track.get("id", PROBE_TRACK_ID)
             artists = track.get("artists") or []
-            artist_names = ", ".join(
-                str(a.get("name", "?")) for a in artists if isinstance(a, dict)
-            ) or "?"
+            artist_names = (
+                ", ".join(
+                    str(a.get("name", "?")) for a in artists if isinstance(a, dict)
+                )
+                or "?"
+            )
             print(f"OK track: {artist_names} – {name} ({track_id})")
     except (SpotifyAuthError, SpotifyApiError, httpx.HTTPError) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

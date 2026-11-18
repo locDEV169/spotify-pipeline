@@ -20,11 +20,14 @@ if str(_SRC) not in sys.path:
 try:
     import httpx
 except ModuleNotFoundError:
-    print('FAIL: thiếu httpx. Activate venv rồi: python -m pip install -e ".[dev]"', file=sys.stderr)
+    print(
+        'FAIL: thiếu httpx. Activate venv rồi: python -m pip install -e ".[dev]"',
+        file=sys.stderr,
+    )
     raise SystemExit(2) from None
 
-from spotify_pipeline.clients.spotify_auth import SpotifyAuthError, refresh_access_token  # noqa: E402
-from spotify_pipeline.config import SPOTIFY_API_BASE, get_settings  # noqa: E402
+from spotify_pipeline.clients.spotify_auth import SpotifyAuthError, refresh_access_token
+from spotify_pipeline.config import SPOTIFY_API_BASE, get_settings
 
 _HINTS = {
     401: "token sai/hết hạn hoặc là token Client Credentials (không dùng được cho /me).",
@@ -33,7 +36,9 @@ _HINTS = {
 
 
 def _get(client: httpx.Client, token: str, path: str) -> dict:
-    r = client.get(f"{SPOTIFY_API_BASE}{path}", headers={"Authorization": f"Bearer {token}"})
+    r = client.get(
+        f"{SPOTIFY_API_BASE}{path}", headers={"Authorization": f"Bearer {token}"}
+    )
     if r.status_code != 200:
         try:
             msg = r.json().get("error", {}).get("message", r.text[:200])
@@ -49,15 +54,22 @@ def main() -> int:
     try:
         with httpx.Client(timeout=30.0) as client:
             tok = refresh_access_token(
-                s.spotify_client_id, s.spotify_client_secret, s.spotify_refresh_token, client=client
+                s.spotify_client_id,
+                s.spotify_client_secret,
+                s.spotify_refresh_token,
+                client=client,
             )
             access = str(tok["access_token"])
             print(f"OK refresh → access_token expires_in={tok.get('expires_in')}s")
             if tok.get("refresh_token"):
-                print("NOTE: Spotify trả refresh_token mới — chạy lại spotify_login.py --save nếu refresh lỗi sau này.")
+                print(
+                    "NOTE: Spotify trả refresh_token mới — chạy lại spotify_login.py --save nếu refresh lỗi sau này."
+                )
 
             me = _get(client, access, "/me")
-            print(f"OK /me: {me.get('display_name')} ({me.get('id')}) product={me.get('product')}")
+            print(
+                f"OK /me: {me.get('display_name')} ({me.get('id')}) product={me.get('product')}"
+            )
 
             pl = _get(client, access, "/me/playlists?limit=50")
             items = pl.get("items") or []

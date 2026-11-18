@@ -31,7 +31,9 @@ _SOURCE = "spotify_web_api"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Load Spotify tracks into music.raw_spotify")
+    parser = argparse.ArgumentParser(
+        description="Load Spotify tracks into music.raw_spotify"
+    )
     parser.add_argument(
         "track_ids",
         nargs="*",
@@ -50,11 +52,18 @@ def main() -> int:
     from spotify_pipeline.clients.spotify import SpotifyApiError, get_track
     from spotify_pipeline.clients.spotify_auth import SpotifyAuthError, get_access_token
     from spotify_pipeline.config import get_settings
-    from spotify_pipeline.db.postgres import PostgresConfigError, connect_postgres, require_db_url
+    from spotify_pipeline.db.postgres import (
+        PostgresConfigError,
+        connect_postgres,
+        require_db_url,
+    )
 
     settings = get_settings()
     if not settings.spotify_client_id or not settings.spotify_client_secret:
-        print("FAIL: set SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET in .env", file=sys.stderr)
+        print(
+            "FAIL: set SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET in .env",
+            file=sys.stderr,
+        )
         return 2
 
     try:
@@ -97,7 +106,12 @@ def main() -> int:
                     print(f"OK insert: spotify_id={track_id} name={name}")
             finally:
                 conn.close()
-    except (SpotifyAuthError, SpotifyApiError, PostgresConfigError, httpx.HTTPError) as exc:
+    except (
+        SpotifyAuthError,
+        SpotifyApiError,
+        PostgresConfigError,
+        httpx.HTTPError,
+    ) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:

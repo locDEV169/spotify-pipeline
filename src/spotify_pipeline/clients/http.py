@@ -5,4 +5,4 @@ Scaffold stub: implement per docs/SPEC.md. Do not invent live API success here.
 
 
 def not_implemented() -> None:
-    raise NotImplementedError(f"SPEC C2 `http` — not implemented yet")
+    raise NotImplementedError("SPEC C2 `http` — not implemented yet")
