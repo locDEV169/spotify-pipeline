@@ -146,6 +146,7 @@ def main() -> int:
                             entity="track",
                             spotify_id=_id,
                             payload=_payload,
+                            bronze_dir=settings.bronze_dir,
                         )
 
                     conn = call_with_db_retry(db_url, conn, _write_track)
@@ -165,6 +166,7 @@ def main() -> int:
                             entity="artist",
                             spotify_id=_id,
                             payload=_payload,
+                            bronze_dir=settings.bronze_dir,
                         )
 
                     conn = call_with_db_retry(db_url, conn, _write_artist)

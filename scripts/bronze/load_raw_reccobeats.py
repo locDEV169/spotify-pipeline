@@ -124,6 +124,7 @@ def main() -> int:
                             endpoint=_ENDPOINT,
                             spotify_track_ids=_batch,
                             payload=_payload,
+                            bronze_dir=settings.bronze_dir,
                         )
 
                     conn = call_with_db_retry(db_url, conn, _write)

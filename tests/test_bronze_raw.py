@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from spotify_pipeline.pipeline.bronze import (
@@ -67,3 +69,48 @@ def test_write_raw_reccobeats_text_array() -> None:
     sql = conn.sqls[0]
     assert "INSERT INTO music.raw_reccobeats" in sql
     assert "ARRAY['aaa', 'bbb']::text[]" in sql
+
+
+def test_dual_write_filesystem_envelope(tmp_path: Path) -> None:
+    conn = _FakeConn()
+    write_raw_spotify(
+        conn,
+        run_id="rfs",
+        source="spotify_web_api",
+        entity="track",
+        spotify_id="abc123",
+        payload={"name": "Song"},
+        bronze_dir=tmp_path,
+    )
+    files = list(tmp_path.rglob("abc123.json"))
+    assert len(files) == 1
+    data = json.loads(files[0].read_text(encoding="utf-8"))
+    assert "ingested_at" in data
+    assert data["run_id"] == "rfs"
+    assert data["spotify_id"] == "abc123"
+    assert data["payload"]["name"] == "Song"
+
+
+def test_dual_write_charts_path(tmp_path: Path) -> None:
+    conn = _FakeConn()
+    write_raw_charts(
+        conn,
+        run_id="rc",
+        source="charts_public_v0",
+        chart_date="2026-11-12",
+        chart_type="weekly_top_songs",
+        country="global",
+        payload={"entries": []},
+        bronze_dir=tmp_path,
+    )
+    path = (
+        tmp_path
+        / "charts"
+        / "public_v0"
+        / "chart_date=2026-11-12"
+        / "global_weekly_top_songs.json"
+    )
+    assert path.is_file()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["ingested_at"]
+    assert data["chart_type"] == "weekly_top_songs"
