@@ -16,6 +16,7 @@ class ChartEntry(BaseModel):
     rank: int = Field(ge=1)
     prev_rank: int | None = None
     streams: int | None = None
+    entry_status: str | None = None
 
     @field_validator("prev_rank")
     @classmethod
@@ -49,6 +50,10 @@ def chart_entries_from_view(view: dict[str, Any]) -> list[ChartEntry]:
         track_id = spotify_id_from_uri(str(meta.get("trackUri") or ""))
         rank = data.get("currentRank", entry.get("currentRank"))
         prev = data.get("previousRank", entry.get("previousRank"))
+        status_raw = data.get("entryStatus", entry.get("entryStatus"))
+        entry_status = None
+        if status_raw not in (None, ""):
+            entry_status = str(status_raw).strip() or None
         try:
             out.append(
                 ChartEntry(
@@ -56,6 +61,7 @@ def chart_entries_from_view(view: dict[str, Any]) -> list[ChartEntry]:
                     rank=rank,
                     prev_rank=prev if prev not in (0, None, "") else None,
                     streams=None,  # public/v0: always NULL
+                    entry_status=entry_status,
                 )
             )
         except ValidationError as exc:

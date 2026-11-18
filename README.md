@@ -1,6 +1,6 @@
 # Spotify Charts → Web API → ReccoBeats Pipeline
 
-**Status:** Bronze Stage 4 locked for MVP — C7–C9 + extract-from-Bronze + `run` (Bronze-only). SoR = Postgres `music.*`. Silver/Gold/backfill/`--offline` still stubs. Spotify = single `/{id}` (Q-D=2).  
+**Status:** Bronze Stage 4 locked + **Silver C10 W1–W6** (`build-silver` one-pass: fact → dims → bridge → features). SoR = Postgres `music.*`. Gold/backfill/`run --offline` still stubs. `run` stays Bronze-only (SQ-11). Spotify = single `/{id}` (Q-D=2).  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS.  
 **Gaps checklist:** [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md)
 
@@ -26,10 +26,11 @@ New Spotify developer apps cannot use Audio Features / Audio Analysis ([Spotify 
 
 - Charts **`public/v0`** — weekly Global top 50 (unauthenticated); `streams = NULL`
 - Bronze SoR = Postgres `music.raw_*` (+ optional FS dual-write under `data/bronze/`)
-- Silver/Gold target = Postgres `music.*` (DDL ready; builders deferred)
+- Silver = Postgres `music.fact_chart` / `dim_*` / `bridge_*` via `build-silver` (LEFT JOIN + `features_found`)
+- Gold target = Postgres views (DDL ready; builder deferred)
 - Spotify enrich = single `/{id}` (batch `?ids=` deferred)
-- One CLI cycle per watermark `(chart_date, chart_type, country)` via `run` (Bronze-only today)
-- Later: Gold summary (`features_found`, movers, mood) + offline fixtures
+- Bronze cycle: `run` (Bronze-only). Silver: `build-silver` per watermark
+- Later: Gold summary (movers, mood, coverage) + offline fixtures + wire `run`→Silver
 
 Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Airflow/Prefect, and BI dashboards are **out of MVP / undecided** (see [Open questions](#open-questions)).
 
@@ -73,7 +74,7 @@ Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6*
 | Tests | `pytest` (+ recorded fixtures later) |
 | Packaging | `pip` + `venv` + `pyproject.toml` |
 
-Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/`. Silver/Gold/analytics modules still stub until implemented per SPEC.
+Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/`. Silver C10 live; Gold/analytics/backfill still stub until implemented per SPEC.
 
 
 ## Scripts layout

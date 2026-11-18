@@ -200,9 +200,48 @@ def enrich_reccobeats_cmd(
 
 
 @app.command("build-silver")
-def build_silver() -> None:
-    """SPEC C10 — Silver tables + LEFT JOIN."""
-    _not_implemented("build-silver")
+def build_silver(
+    chart_date: str = typer.Option(
+        ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
+    ),
+    chart_type: str = typer.Option(
+        "weekly_top_songs",
+        "--chart-type",
+        help="MVP: weekly_top_songs (fact + dims + features)",
+    ),
+    country: str = typer.Option("global", "--country", help="Chart country / region"),
+) -> None:
+    """SPEC C10 — Silver one-pass (W1–W4): fact → dims → bridge → features.
+
+    Does not wire into `run` (SQ-11 deferred). Gold/offline still separate.
+    """
+    from spotify_pipeline.pipeline.silver import SilverError, build_silver
+    from spotify_pipeline.state.watermark import Watermark, WatermarkError
+
+    try:
+        watermark = Watermark.parse(chart_date, chart_type, country)
+        result = build_silver(watermark)
+    except (WatermarkError, SilverError) as exc:
+        typer.secho(f"FAIL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    fact = result.fact
+    dim = result.dim_track
+    artists = result.artist_bridge
+    features = result.features
+    typer.echo(
+        "OK build-silver "
+        f"watermark={result.watermark} "
+        f"fact_upserted={fact.upserted} "
+        f"dim_track_upserted={dim.upserted} "
+        f"dim_track_missed={dim.missed} "
+        f"artists_upserted={artists.artists_upserted} "
+        f"bridges_upserted={artists.bridges_upserted} "
+        f"features_hits={features.hits} "
+        f"features_misses={features.misses} "
+        f"raw_charts_id={fact.raw_charts_id} "
+        f"run_id={result.run_id}"
+    )
 
 
 @app.command("build-gold")
