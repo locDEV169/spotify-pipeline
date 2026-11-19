@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Migrate/apply SQL DDL to Supabase Postgres (schema music only).
 
-Default file: docs/sql/music_schema.sql
+Default file: docs/sql/init/music_schema.sql
 Requires SUPABASE_DB_URL in .env (Dashboard → Database → Connect).
 Uses pg8000 (pure Python). Never prints the connection string / password.
 
 Usage:
     python scripts/ddl/apply_music_ddl.py
-    python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql
+    python scripts/ddl/apply_music_ddl.py docs/sql/init/music_schema.sql
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from urllib.parse import unquote, urlparse
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC = _REPO_ROOT / "src"
-_DEFAULT_SQL = _REPO_ROOT / "docs" / "sql" / "music_schema.sql"
+_DEFAULT_SQL = _REPO_ROOT / "docs" / "sql" / "init" / "music_schema.sql"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
@@ -111,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
             "Lấy URI tại Supabase Dashboard → Project Settings → Database → Connect.\n"
             "Dán vào .env (không commit), rồi chạy lại:\n"
             "  python scripts/ddl/apply_music_ddl.py\n"
-            "Hoặc paste docs/sql/music_schema.sql vào Dashboard → SQL Editor → Run.",
+            "Hoặc paste docs/sql/init/music_schema.sql vào Dashboard → SQL Editor → Run.",
             file=sys.stderr,
         )
         return 2

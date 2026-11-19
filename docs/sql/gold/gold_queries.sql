@@ -1,4 +1,4 @@
--- Runtime Gold query templates (G1–G4). NOT DDL — VIEWs live in music_schema.sql.
+-- Runtime Gold query templates (G1–G4). NOT DDL — VIEWs live in docs/sql/init/music_schema.sql.
 -- Python: spotify_pipeline.pipeline.gold.sql
 -- Placeholders (tokens only at real inject sites — never in comments): WHERE / BASE_JOIN / LIMIT
 -- Missing path composes Silver LEFT JOIN (do not duplicate BR-6 join body here).

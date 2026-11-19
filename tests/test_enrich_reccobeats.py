@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from spotify_pipeline.pipeline.enrich_reccobeats import (
+from spotify_pipeline.pipeline.enrich.reccobeats import (
     EnrichReccoBeatsError,
     enrich_reccobeats,
 )
-from spotify_pipeline.pipeline.extract_ids import ExtractedIds
+from spotify_pipeline.pipeline.bronze.extract_ids import ExtractedIds
 from spotify_pipeline.state.watermark import Watermark
 
 
@@ -34,30 +34,30 @@ def test_enrich_reccobeats_batches_and_writes() -> None:
 
     with (
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.extract_ids",
+            "spotify_pipeline.pipeline.enrich.reccobeats.extract_ids",
             return_value=extracted,
         ) as extract,
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.get_settings",
+            "spotify_pipeline.pipeline.enrich.reccobeats.get_settings",
             return_value=settings,
         ),
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.require_db_url"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.connect_postgres",
+            "spotify_pipeline.pipeline.enrich.reccobeats.connect_postgres",
             return_value=fake_conn,
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.call_with_db_retry",
+            "spotify_pipeline.pipeline.enrich.reccobeats.call_with_db_retry",
             side_effect=lambda db_url, conn, fn: (fn(conn), conn)[1],
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.get_audio_features",
+            "spotify_pipeline.pipeline.enrich.reccobeats.get_audio_features",
             return_value=features,
         ) as get_af,
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.write_raw_reccobeats"
+            "spotify_pipeline.pipeline.enrich.reccobeats.write_raw_reccobeats"
         ) as write_raw,
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.httpx.Client"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.httpx.Client"),
     ):
         result = enrich_reccobeats(wm, run_id="run456", write_fs=False)
 
@@ -90,28 +90,28 @@ def test_enrich_reccobeats_chunks_over_40() -> None:
 
     with (
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.extract_ids",
+            "spotify_pipeline.pipeline.enrich.reccobeats.extract_ids",
             return_value=extracted,
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.get_settings",
+            "spotify_pipeline.pipeline.enrich.reccobeats.get_settings",
             return_value=settings,
         ),
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.require_db_url"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.connect_postgres",
+            "spotify_pipeline.pipeline.enrich.reccobeats.connect_postgres",
             return_value=fake_conn,
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.call_with_db_retry",
+            "spotify_pipeline.pipeline.enrich.reccobeats.call_with_db_retry",
             side_effect=lambda db_url, conn, fn: (fn(conn), conn)[1],
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.get_audio_features",
+            "spotify_pipeline.pipeline.enrich.reccobeats.get_audio_features",
             return_value={"content": []},
         ) as get_af,
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.write_raw_reccobeats"),
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.httpx.Client"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.write_raw_reccobeats"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.httpx.Client"),
     ):
         result = enrich_reccobeats(wm, run_id="run789", write_fs=False)
 
@@ -137,26 +137,26 @@ def test_enrich_reccobeats_injected_ids_skips_extract() -> None:
     settings.reccobeats_batch_size = 40
 
     with (
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.extract_ids") as extract,
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.extract_ids") as extract,
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.get_settings",
+            "spotify_pipeline.pipeline.enrich.reccobeats.get_settings",
             return_value=settings,
         ),
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.require_db_url"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.connect_postgres",
+            "spotify_pipeline.pipeline.enrich.reccobeats.connect_postgres",
             return_value=fake_conn,
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.call_with_db_retry",
+            "spotify_pipeline.pipeline.enrich.reccobeats.call_with_db_retry",
             side_effect=lambda db_url, conn, fn: (fn(conn), conn)[1],
         ),
         patch(
-            "spotify_pipeline.pipeline.enrich_reccobeats.get_audio_features",
+            "spotify_pipeline.pipeline.enrich.reccobeats.get_audio_features",
             return_value={"content": []},
         ),
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.write_raw_reccobeats"),
-        patch("spotify_pipeline.pipeline.enrich_reccobeats.httpx.Client"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.write_raw_reccobeats"),
+        patch("spotify_pipeline.pipeline.enrich.reccobeats.httpx.Client"),
     ):
         result = enrich_reccobeats(
             wm, run_id="inj", write_fs=False, track_ids=["a", "b"]

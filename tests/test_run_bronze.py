@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from spotify_pipeline.pipeline.extract_ids import ExtractedIds
+from spotify_pipeline.pipeline.bronze.extract_ids import ExtractedIds
 from spotify_pipeline.pipeline.run import run_bronze
 from spotify_pipeline.state.watermark import Watermark
 

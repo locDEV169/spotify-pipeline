@@ -98,7 +98,7 @@ def ingest_charts_cmd(
     ),
 ) -> None:
     """SPEC C9 — ingest Charts public/v0 → Bronze for one watermark."""
-    from spotify_pipeline.pipeline.ingest_charts import (
+    from spotify_pipeline.pipeline.bronze.ingest_charts import (
         IngestChartsError,
         ingest_charts,
     )
@@ -135,7 +135,7 @@ def enrich_spotify_cmd(
     ),
 ) -> None:
     """SPEC C9 — enrich Spotify metadata → Bronze for one watermark."""
-    from spotify_pipeline.pipeline.enrich_spotify import (
+    from spotify_pipeline.pipeline.enrich.spotify import (
         EnrichSpotifyError,
         enrich_spotify,
     )
@@ -174,7 +174,7 @@ def enrich_reccobeats_cmd(
     ),
 ) -> None:
     """SPEC C9 — enrich ReccoBeats features → Bronze for one watermark."""
-    from spotify_pipeline.pipeline.enrich_reccobeats import (
+    from spotify_pipeline.pipeline.enrich.reccobeats import (
         EnrichReccoBeatsError,
         enrich_reccobeats,
     )

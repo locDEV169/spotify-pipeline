@@ -124,26 +124,26 @@ def test_build_silver_one_pass_orchestrates_builders() -> None:
     )
 
     with (
-        patch("spotify_pipeline.pipeline.silver.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.silver.require_db_url"),
+        patch("spotify_pipeline.pipeline.silver.build.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.silver.build.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.silver.connect_postgres",
+            "spotify_pipeline.pipeline.silver.build.connect_postgres",
             return_value=fake_conn,
         ),
         patch(
-            "spotify_pipeline.pipeline.silver.build_fact_chart",
+            "spotify_pipeline.pipeline.silver.build.build_fact_chart",
             return_value=fact,
         ) as m_fact,
         patch(
-            "spotify_pipeline.pipeline.silver.build_dim_track",
+            "spotify_pipeline.pipeline.silver.build.build_dim_track",
             return_value=dim,
         ) as m_dim,
         patch(
-            "spotify_pipeline.pipeline.silver.build_dim_artist_bridge",
+            "spotify_pipeline.pipeline.silver.build.build_dim_artist_bridge",
             return_value=artists,
         ) as m_art,
         patch(
-            "spotify_pipeline.pipeline.silver.build_dim_track_features",
+            "spotify_pipeline.pipeline.silver.build.build_dim_track_features",
             return_value=features,
         ) as m_feat,
     ):
