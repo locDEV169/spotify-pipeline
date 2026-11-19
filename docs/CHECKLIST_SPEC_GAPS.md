@@ -4,7 +4,44 @@
 **Source of truth:** [`docs/SPEC.md`](SPEC.md)  
 **Last updated:** 2026-11-19  
 
-### Files updated this pass (Gold G1)
+### Files updated this pass (Gold G5–G6)
+
+| File | What changed |
+|------|----------------|
+| `src/spotify_pipeline/pipeline/gold/build.py` | **G6:** `build_gold` one-pass · **G5:** `SCD2_STATUS=deferred` |
+| `src/spotify_pipeline/cli.py` | **G6:** `build-gold` watermark CLI |
+| `tests/test_gold_build.py` | G5/G6 offline unit tests |
+| `docs/CHECKLIST_SPEC_GAPS.md` | §E **G5–G6 [x]** · GQ-5 Answer=defer |
+| `README.md` / `docs/SPEC.md` | Status + change log Gold builder |
+
+### Prior pass (Gold G4)
+
+| File | What changed |
+|------|----------------|
+| `docs/sql/gold/gold_queries.sql` | **G4:** `-- @@query: popularity_feature_pairs` |
+| `src/spotify_pipeline/pipeline/gold/` | **G4:** skip-safe popularity vs features reader |
+| `tests/test_gold_popularity.py` | G4 offline unit tests |
+| `docs/CHECKLIST_SPEC_GAPS.md` | §E **G4 [x]** |
+
+### Prior pass (Gold G3)
+
+| File | What changed |
+|------|----------------|
+| `docs/sql/gold/gold_queries.sql` | **G3:** `-- @@query: mood_segments` |
+| `src/spotify_pipeline/pipeline/gold/` | **G3:** `MoodRow` / `_mood_label` / `sql_mood_segments` / `query_mood_segments` |
+| `tests/test_gold_mood.py` | G3 offline unit tests |
+| `docs/CHECKLIST_SPEC_GAPS.md` | §E **G3 [x]** |
+
+### Prior pass (Gold G2)
+
+| File | What changed |
+|------|----------------|
+| `docs/sql/gold/gold_queries.sql` | **G2:** `-- @@query: movers` |
+| `src/spotify_pipeline/pipeline/gold/` | **G2:** `MoverRow` / `sql_movers` / `query_movers` (+ package split) |
+| `tests/test_gold_movers.py` | G2 offline unit tests |
+| `docs/CHECKLIST_SPEC_GAPS.md` | §E **G2 [x]** |
+
+### Prior pass (Gold G1)
 
 | File | What changed |
 |------|----------------|
@@ -72,7 +109,7 @@ Tick `Status`: `[ ]` open · `[x]` done (đã quyết + đã update docs/code th
 | [x] | D02 | Parallel fan-out | SP ∥ RB từ EX | **Done 18/11:** `run_bronze` extract once → SP → RB (logical) | **Should** | **code** (Q-B=2) |
 | [x] | D03 | `features_found` | Cột Silver + Gold coverage | **W4 done:** `dim_track.features_found` từ Bronze ReccoBeats | **Must** | **code** (Q-E=1→W4) |
 | [x] | D04 | Silver C10 | `fact_chart` + dims + LEFT JOIN | **W1–W6 done:** `build_silver` one-pass | **Must** | **code** |
-| [ ] | D05 | Gold / backfill / offline | C11–C12; `run --offline` | **G1 done** (coverage reader); movers/mood/CLI + backfill/offline open | **Must** | **code** (partial) |
+| [ ] | D05 | Gold / backfill / offline | C11–C12; `run --offline` | **Gold G1–G6 done** (`build-gold`); backfill/offline open | **Must** | **code** (partial) |
 | [ ] | D06 | C2 HTTP 429 | Shared session + Retry-After | `clients/http.py` stub; Spotify chưa 429; RB tự retry | **Should** | Nice / Code |
 | [x] | D07 | Spotify batch | `?ids=` + `/{id}` | Chỉ `/{id}` — **accepted MVP** (Q-D=2) | **Should** | **Doc** (batch deferred) |
 | [x] | D08 | Models C6 | Track / Artist / AudioFeatures | **Track+Artist+AudioFeatures done (W2–W4)** | **Should** | **code** |
@@ -177,7 +214,7 @@ Với từng D01–D12, chọn một rồi ghi Change log SPEC:
 - [ ] **C-3** C4 Spotify `?ids=` + fallback — **deferred** (Q-D=2; chỉ reopen sau F5 / Q-D≠2)
 - [ ] **C-4** C2 `http.py` + wire 429 Spotify/ReccoBeats *(Nice D3)*
 - [x] **C-5** C10 Silver: fact + dims + LEFT JOIN + `features_found` → **W1–W6 done** (`build_silver`)
-- [ ] **C-6** C11 Gold + coverage % → **§E G1–G6** (G1 done; G2–G6 active)
+- [x] **C-6** C11 Gold + coverage % → **§E G1–G6** (**done** 19/11; backfill/offline still open under D05)
 - [ ] **C-7** C12 backfill `features_found=false`
 - [x] **C-8** C14 `run` Bronze-only (extract once → SP → RB); `--offline` vẫn chưa
 - [ ] **C-9** C13 analytics `--report` (Nice)
@@ -396,7 +433,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 
 **Links:** [D05](#a-điểm-lệch-d01d12) · [C-6](#b4-code-slices-sau-b1) · [C-9](#b4-code-slices-sau-b1) *(Nice analytics)* · SPEC [C11](SPEC.md) · [Gold analytics MVP](SPEC.md#gold-analytics-mvp) · DDL [`docs/sql/music_schema.sql`](sql/music_schema.sql) · Silver [§D](#d-silver-c10-w1w7) (W1–W7 done)
 
-**Fact (locked):** Silver C10 MVP **COMPLETE** (W1–W7). Gold must read **only** Silver (`music.fact_chart` / `dim_*` / bridge as needed) — **no HTTP**, no Bronze re-parse required for MVP. DDL already has VIEWs: `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`. **G1 done** (`query_feature_coverage` / missing top-N). Remaining stubs: `cli.py build-gold`, movers/mood, `analytics/{movers,mood,summary}.py`.
+**Fact (locked):** Silver C10 MVP **COMPLETE** (W1–W7). Gold must read **only** Silver (`music.fact_chart` / `dim_*` / bridge as needed) — **no HTTP**, no Bronze re-parse required for MVP. DDL already has VIEWs: `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`. **G1–G6 done** (`build_gold` / CLI `build-gold`; G5 SCD2 deferred). Remaining: G7 docs polish · `analytics/*` stubs (C-9) · backfill/offline.
 
 **Diagram ↔ DDL mismatches (Fact — do not silently “fix” without soft decision):**
 
@@ -412,7 +449,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 - [x] Q-C=1 Postgres `music.*` SoR
 - [x] Gold VIEWs exist in DDL / applied schema (`gold_feature_coverage`, `gold_movers`, `gold_mood_segments`)
 - [x] At least one watermark populated in Silver (F7 ≈50/50/59; F4 hits/misses noted)
-- [x] B0 **D05** classified (**code**, partial — G1 done; G2–G6 + backfill/offline open)
+- [x] B0 **D05** classified (**code**, partial — Gold G1–G6 done; backfill/offline open)
 - [x] Soft **GQ-*** proceed with Recommendation for G1 (GQ-1 / GQ-7); others still soft for later slices
 
 ### 2. Soft decisions (Recommendations — not Facts)
@@ -423,7 +460,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 | **GQ-2** | Movers new / re-entry | **MVP = VIEW as-is** (`rank_delta` where `prev_rank IS NOT NULL`) | New/re-entry = Nice after Chubby Answer; don’t invent statuses |
 | **GQ-3** | Mood thresholds | Document energy×valence cutovers in **code comments** (SPEC) | e.g. 0.5/0.5 quadrants — Assumption until Chubby locks numbers |
 | **GQ-4** | Popularity vs features | **Null-safe skip** on current Dev Mode (Open Q2: popularity absent) | Optional stub query OK; no DDL required; never fail build |
-| **GQ-5** | SCD2 | **Defer formal table**; MVP = append-only `fact_chart` query if needed | Matches SPEC nice-to-have; diagram-only until promoted |
+| **GQ-5** | SCD2 | **Answer (19/11): defer formal table** | Diagram-only until promoted; `SCD2_STATUS=deferred` in `gold.build` |
 | **GQ-6** | C13 analytics modules | Thin helpers inside `pipeline/gold.py` for CLI summary; leave `analytics/*` stubs until **C-9** | Avoid dual logic |
 | **GQ-7** | Watermark CLI args | Same as Silver: `chart_date` / `chart_type` / `country` | Mirror `build-silver` |
 | **GQ-8** | Wire `run` → Gold | **Do not** in this checklist | Same spirit as SQ-11; after G6 + optional offline |
@@ -452,7 +489,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 
 #### G2 — Movers (`gold_movers` + streams null-safe)
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19)
 - **In:** Read `music.gold_movers` for watermark; expose `rank_delta` (= `prev_rank - rank`, positive = up)
 - **Out:** Formal new/re-entry taxonomy (unless GQ-2 promoted), SCD2, genre, HTTP
 - **Steps:**
@@ -460,17 +497,17 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
   2. Document VIEW filter: rows with `prev_rank IS NULL` excluded (GQ-2)
   3. Streams: pass through; summary/report include streams **only when NOT NULL** (GQ-9)
   4. Test delta sign + null streams on `public/v0`
-- **Files:** `pipeline/gold.py` · optional thin `analytics/movers.py` only if GQ-6 says so · tests
+- **Files:** `pipeline/gold.py` · `docs/sql/gold/gold_queries.sql` · `tests/test_gold_movers.py` · `analytics/movers.py` left stub (GQ-6)
 - **AC:**
   - Rank delta matches SPEC formula
   - `streams` null does not fail movers
   - No chart rows deleted in Silver as side effect
 - **Depends:** G1 (recommended) · GQ-2 · GQ-9
-- **Closes / advances:** C-6
+- **Closes / advances:** C-6 — **done** (movers slice)
 
 #### G3 — Mood segments (`features_found=true`)
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19)
 - **In:** Read `music.gold_mood_segments`; assign mood labels from energy×valence (GQ-3)
 - **Out:** Genre analysis, changing VIEW to LEFT JOIN (would contradict SPEC mood filter), HTTP
 - **Steps:**
@@ -478,33 +515,35 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
   2. Add quadrant/segment labels in code; **document thresholds in comments** (SPEC)
   3. Note in code/docs: filter ≠ BR-6 violation; coverage still reports misses
   4. Test: miss tracks absent from mood; hit tracks labeled; `source_features` preserved
-- **Files:** `pipeline/gold.py` · optional `analytics/mood.py` (GQ-6) · tests
+- **Files:** `pipeline/gold/` · `docs/sql/gold/gold_queries.sql` · `tests/test_gold_mood.py` · `analytics/mood.py` left stub (GQ-6)
 - **AC:**
   - Mood output only where `features_found=true`
   - Empty mood allowed when coverage < 100%; build still succeeds
   - Thresholds documented in comments
 - **Depends:** G1 · GQ-3 · GQ-6
-- **Closes / advances:** C-6 (mood)
+- **Closes / advances:** C-6 (mood) — **done**
+- **Assumption applied:** cutover 0.5; labels `energetic|tense|chill|sad|unknown` (null energy/valence → `unknown`)
 
 #### G4 — Popularity vs features (null-safe optional)
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19)
 - **In:** Optional scatter/pairs query: `track_popularity` vs selected audio features where both present
 - **Out:** Failing the build when popularity absent; new mandatory DDL; claiming feasibility on current Dev Mode without caveat
 - **Steps:**
   1. Implement null-safe path (GQ-4): if no non-null `track_popularity` for watermark → skip + message
   2. Do **not** require new VIEW for MVP (Assumption: ad-hoc SQL OK)
   3. Test: all-null popularity → skip; mixed → only non-null pairs
-- **Files:** `pipeline/gold.py` · tests
+- **Files:** `pipeline/gold/` · `docs/sql/gold/gold_queries.sql` · `tests/test_gold_popularity.py`
 - **AC:**
   - Gold completes when popularity absent (BR-10 / Open Q2)
   - No invented popularity values
 - **Depends:** G3 recommended · GQ-4
-- **Closes / advances:** C-6 (optional slice)
+- **Closes / advances:** C-6 (optional slice) — **done**
+- **Assumption applied:** pair energy/valence/danceability; `PopularityFeatureResult(skipped, reason)` when empty
 
 #### G5 — SCD2 rank history (soft)
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19) — **Answer = defer formal** (option A)
 - **In:** Per GQ-5 — either (A) defer formal SCD2 with checklist note, or (B) thin history query over append-only `fact_chart` (`valid_from`/`valid_to` **not** persisted)
 - **Out:** New SCD2 table/DDL without Chubby Answer; rewriting Silver grain
 - **Steps:**
@@ -512,16 +551,16 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
   2. If defer: document diagram mismatch in G7; no code beyond comment/README
   3. If thin query: read-only SQL by `(track_id, chart_type, country)` ordered by `chart_date`; no `is_current` table
   4. Test only if (B) implemented
-- **Files:** docs and/or `pipeline/gold.py` query helper · **no** DDL unless Answer promotes formal
+- **Files:** `gold/build.py` (`SCD2_STATUS`) · checklist · README/SPEC note · **no** DDL
 - **AC:**
   - Formal SCD2 table remains absent unless explicitly promoted
   - MVP history (if any) is query-only on `fact_chart`
 - **Depends:** GQ-5 · G2 useful for multi-date context
-- **Closes / advances:** Nice / diagram honesty (not Must for Gold MVP per SPEC)
+- **Closes / advances:** Nice / diagram honesty (not Must for Gold MVP per SPEC) — **done (defer)**
 
 #### G6 — `build-gold` one-pass CLI + summary
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19)
 - **In:** Single CLI command runs G1–G3 (+ G4 skip path; G5 per soft) for one watermark; prints coverage / movers / mood counts
 - **Out:** Wire into `run` (GQ-8 later), full `--offline` E2E (D12), backfill C12, rich C13 `--report` (C-9)
 - **Steps:**
@@ -529,17 +568,17 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
   2. Orchestrate `build_gold()` in `pipeline/gold.py`
   3. Exit codes / summary style consistent with `build-silver`
   4. Do **not** auto-wire `run` → Gold (GQ-8)
-- **Files:** `cli.py` · `pipeline/gold.py` · tests for one-pass
+- **Files:** `cli.py` · `pipeline/gold/build.py` · `tests/test_gold_build.py`
 - **AC:**
   - `python -m spotify_pipeline build-gold --chart-date … --chart-type … --country …` completes from Silver-only inputs
   - Summary includes coverage % (Success / Objective)
   - Idempotent re-query; `run` unchanged
 - **Depends:** G1–G3 · GQ-7 · GQ-8
-- **Closes:** **C-6** Gold MVP builder (D05 advanced; full D05 also needs backfill/offline — still open)
+- **Closes:** **C-6** Gold MVP builder (D05 advanced; full D05 also needs backfill/offline — still open) — **done**
 
 #### G7 — checklist / docs hygiene
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19) — with G5/G6 pass
 - **In:** Tick gaps; sync README/SPEC status; record GQ-* Answers; note diagram↔DDL mismatches
 - **Out:** New product features, BI tool choice, invented BRs
 - **Steps:**
@@ -553,7 +592,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
   - No invented BRs; GQ-* labeled soft or promoted with Chubby Answer
   - Explicit notes: mood INNER JOIN; SCD2 not in DDL; popularity optional/skip
 - **Depends:** G6 (or incremental after each G*)
-- **Closes:** Doc hygiene for Gold slice
+- **Closes:** Doc hygiene for Gold slice — **done**
 
 ### 4. Out of scope (this Gold checklist)
 
@@ -601,4 +640,4 @@ Optional PR sizing: G1 alone (S) · G2+G3 · G4+G5 (soft/docs-heavy) · G6 · G7
 | **Chốt 18/11** | Q-A=2 · Q-B=2 · **Q-C=1** · **Q-D=2** · Q-E=1 (**D03/D04 closed**) · Q-F=2 |
 | **Doc done 18/11–19/11** | D03 · D04 · D07 · D08 · D10 · D11 · DOC-1 · DOC-2 · DOC-5 · F1/F3/F4/F7 · W1–W7 · §E · **G1** |
 | **Soft (SQ-* / GQ-*)** | SQ-11 still soft; **GQ-1…GQ-10** Recommendations for Gold (see §E) |
-| **Open** | D05 (partial) · D06 · D09 · D12 · Nice D3→D1→D2 · Gold **G2–G7** · SQ-11 · GQ-* Answers |
+| **Open** | D05 (partial — backfill/offline) · D06 · D09 · D12 · Nice D3→D1→D2 · SQ-11 · remaining GQ-* soft |

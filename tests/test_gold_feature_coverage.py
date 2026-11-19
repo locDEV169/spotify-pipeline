@@ -41,8 +41,10 @@ def test_gold_queries_sql_file_has_sections_and_placeholders() -> None:
     assert "/*__WHERE__*/" in raw
     assert "/*__BASE_JOIN__*/" in raw
     assert "/*__LIMIT__*/" in raw
-    # do not duplicate Silver LEFT JOIN body in Gold file
-    assert "FROM music.fact_chart AS f" not in raw
+    # missing_features composes Silver LEFT JOIN (do not paste BR-6 body there)
+    missing = raw.split("-- @@query: missing_features", 1)[1].split("-- @@query:", 1)[0]
+    assert "/*__BASE_JOIN__*/" in missing
+    assert "FROM music.fact_chart AS f" not in missing
 
 
 def test_sql_feature_coverage_loads_from_file() -> None:
@@ -62,6 +64,11 @@ def test_sql_missing_features_composes_silver_left_join() -> None:
     assert "LIMIT 5" in sql
     assert "/*__BASE_JOIN__*/" not in sql
     assert "/*__LIMIT__*/" not in sql
+    assert sql.count("WHERE f.chart_date") == 1
+    # no comment-bleed orphan AND before inner SELECT
+    inner = sql.split("FROM (", 1)[1].split(") AS j", 1)[0]
+    preamble = inner.split("SELECT", 1)[0]
+    assert "AND f.chart_type" not in preamble
 
 
 def test_query_feature_coverage_maps_view_row() -> None:
@@ -71,9 +78,9 @@ def test_query_feature_coverage_maps_view_row() -> None:
     ]
 
     with (
-        patch("spotify_pipeline.pipeline.gold.get_settings", return_value=_settings()),
-        patch("spotify_pipeline.pipeline.gold.require_db_url"),
-        patch("spotify_pipeline.pipeline.gold.connect_postgres", return_value=db),
+        patch("spotify_pipeline.pipeline.gold.readers.get_settings", return_value=_settings()),
+        patch("spotify_pipeline.pipeline.gold.readers.require_db_url"),
+        patch("spotify_pipeline.pipeline.gold.readers.connect_postgres", return_value=db),
     ):
         result = query_feature_coverage(_wm())
 
@@ -96,9 +103,9 @@ def test_query_feature_coverage_empty_view_returns_none() -> None:
     db.run.return_value = []
 
     with (
-        patch("spotify_pipeline.pipeline.gold.get_settings", return_value=_settings()),
-        patch("spotify_pipeline.pipeline.gold.require_db_url"),
-        patch("spotify_pipeline.pipeline.gold.connect_postgres", return_value=db),
+        patch("spotify_pipeline.pipeline.gold.readers.get_settings", return_value=_settings()),
+        patch("spotify_pipeline.pipeline.gold.readers.require_db_url"),
+        patch("spotify_pipeline.pipeline.gold.readers.connect_postgres", return_value=db),
     ):
         assert query_feature_coverage(_wm()) is None
 
@@ -111,9 +118,9 @@ def test_query_missing_features_filters_not_true_and_limits() -> None:
     ]
 
     with (
-        patch("spotify_pipeline.pipeline.gold.get_settings", return_value=_settings()),
-        patch("spotify_pipeline.pipeline.gold.require_db_url"),
-        patch("spotify_pipeline.pipeline.gold.connect_postgres", return_value=db),
+        patch("spotify_pipeline.pipeline.gold.readers.get_settings", return_value=_settings()),
+        patch("spotify_pipeline.pipeline.gold.readers.require_db_url"),
+        patch("spotify_pipeline.pipeline.gold.readers.connect_postgres", return_value=db),
     ):
         rows = query_missing_features(_wm(), top_n=5)
 
@@ -142,9 +149,9 @@ def test_get_feature_coverage_report_shared_conn() -> None:
     ]
 
     with (
-        patch("spotify_pipeline.pipeline.gold.get_settings", return_value=_settings()),
-        patch("spotify_pipeline.pipeline.gold.require_db_url"),
-        patch("spotify_pipeline.pipeline.gold.connect_postgres", return_value=db) as connect,
+        patch("spotify_pipeline.pipeline.gold.readers.get_settings", return_value=_settings()),
+        patch("spotify_pipeline.pipeline.gold.readers.require_db_url"),
+        patch("spotify_pipeline.pipeline.gold.readers.connect_postgres", return_value=db) as connect,
     ):
         report = get_feature_coverage_report(_wm(), missing_top_n=10)
 
@@ -165,9 +172,9 @@ def test_get_feature_coverage_report_skips_missing_when_none() -> None:
     ]
 
     with (
-        patch("spotify_pipeline.pipeline.gold.get_settings", return_value=_settings()),
-        patch("spotify_pipeline.pipeline.gold.require_db_url"),
-        patch("spotify_pipeline.pipeline.gold.connect_postgres", return_value=db),
+        patch("spotify_pipeline.pipeline.gold.readers.get_settings", return_value=_settings()),
+        patch("spotify_pipeline.pipeline.gold.readers.require_db_url"),
+        patch("spotify_pipeline.pipeline.gold.readers.connect_postgres", return_value=db),
     ):
         report = get_feature_coverage_report(_wm(), missing_top_n=None)
 

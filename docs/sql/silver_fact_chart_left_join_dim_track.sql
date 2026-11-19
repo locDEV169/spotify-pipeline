@@ -1,6 +1,7 @@
 -- Silver W5 / SPEC BR-6: chart rows survive missing dim_track / features.
 -- Python helper: spotify_pipeline.pipeline.silver.sql_fact_chart_left_join_dim_track
--- Placeholder /*__WHERE__*/ is replaced with an optional watermark filter (or empty).
+-- Placeholder WHERE_FILTER (see Python) is replaced with an optional watermark filter (or empty).
+-- ponytail: do not put the WHERE placeholder token in comments — naive str.replace hits comments too.
 
 SELECT
     f.chart_date,

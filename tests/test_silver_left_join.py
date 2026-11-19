@@ -32,11 +32,20 @@ def test_sql_fact_chart_left_join_loads_from_docs_sql_file() -> None:
     assert _SQL_FACT_LEFT_JOIN.is_file()
     raw = _SQL_FACT_LEFT_JOIN.read_text(encoding="utf-8")
     assert "LEFT JOIN music.dim_track" in raw
-    assert "/*__WHERE__*/" in raw
+    assert raw.count("/*__WHERE__*/") == 1
     # no watermark → placeholder removed, no WHERE clause injected
     sql = sql_fact_chart_left_join_dim_track(None)
     assert "WHERE f.chart_date" not in sql
     assert "LEFT JOIN music.dim_track" in sql
+
+
+def test_sql_fact_chart_left_join_watermark_does_not_bleed_from_comments() -> None:
+    wm = Watermark.parse("2026-11-12", "weekly_top_songs", "global")
+    sql = sql_fact_chart_left_join_dim_track(wm)
+    assert sql.count("WHERE f.chart_date") == 1
+    # preamble before first SELECT must not contain orphan AND from comment replace
+    preamble = sql.split("SELECT", 1)[0]
+    assert "AND f.chart_type" not in preamble
 
 
 def test_metadata_upsert_does_not_touch_feature_columns() -> None:

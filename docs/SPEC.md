@@ -492,6 +492,7 @@ CI: offline tests only.
 | 2026-11-18 | Stage 4 fidelity: `extract_ids` từ Bronze `raw_charts`; enrich + `run` Bronze-only logical fan-out (Q-A=2, Q-B=2). Coverage/`features_found` Silver **hoãn**. Checklist: `docs/CHECKLIST_SPEC_GAPS.md`. |
 | 2026-11-18 | Doc lock: **Q-C=1** Postgres `music.*` SoR (Assumption #4 + Tech Stack); **Q-D=2** single-ID Spotify MVP (Assumption #8 + Open Q1 closed for MVP); README synced. Batch `?ids=` / Silver builders vẫn deferred. |
 | 2026-11-18 | **Silver C10 MVP (W1–W6):** `build_silver` / CLI `build-silver` — fact_chart · dim_track · dim_artist+bridge · ReccoBeats `features_found` · LEFT JOIN read helper · COALESCE upserts. Soft SQ-1…SQ-7/SQ-11 kept as soft (run→Silver still deferred). Checklist §D. |
+| 2026-11-19 | **Gold C11 MVP (G1–G6):** `build_gold` / CLI `build-gold` — coverage + missing top-N · movers · mood (0.5 quadrants Assumption) · popularity skip-safe (Open Q2) · **GQ-5 Answer: defer formal SCD2**. Soft GQ-8: `run` still Bronze-only. Checklist §E. |
 
 ---
 
