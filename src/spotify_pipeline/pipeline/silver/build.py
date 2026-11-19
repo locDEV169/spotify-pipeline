@@ -15,11 +15,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-# docs/sql/… relative to repo root (…/src/spotify_pipeline/pipeline → parents[3])
+# docs/sql/silver/… relative to repo root (…/pipeline/silver/build.py → parents[4])
 _SQL_FACT_LEFT_JOIN = (
-    Path(__file__).resolve().parents[3]
+    Path(__file__).resolve().parents[4]
     / "docs"
     / "sql"
+    / "silver"
     / "silver_fact_chart_left_join_dim_track.sql"
 )
 _SQL_WHERE_PLACEHOLDER = "/*__WHERE__*/"
@@ -49,7 +50,7 @@ from spotify_pipeline.models.track import (
     bridge_links_from_track_payload,
     track_from_spotify_payload,
 )
-from spotify_pipeline.pipeline.extract_ids import (
+from spotify_pipeline.pipeline.bronze.extract_ids import (
     ExtractIdsError,
     fetch_latest_raw_charts_payload,
     ids_from_bronze_payload,
@@ -699,7 +700,7 @@ def _load_fact_chart_left_join_sql() -> str:
 
 
 def sql_fact_chart_left_join_dim_track(watermark: Watermark | None = None) -> str:
-    """BR-6 read path: load docs/sql/silver_fact_chart_left_join_dim_track.sql.
+    """BR-6 read path: load docs/sql/silver/silver_fact_chart_left_join_dim_track.sql.
 
     Optional watermark injects WHERE; chart rows still survive missing dim/features.
     """

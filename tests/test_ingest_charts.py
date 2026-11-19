@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from spotify_pipeline.pipeline.ingest_charts import IngestChartsError, ingest_charts
+from spotify_pipeline.pipeline.bronze.ingest_charts import IngestChartsError, ingest_charts
 from spotify_pipeline.state.watermark import Watermark
 
 
@@ -44,21 +44,21 @@ def test_ingest_charts_writes_on_watermark_match() -> None:
 
     with (
         patch(
-            "spotify_pipeline.pipeline.ingest_charts.fetch_public_charts",
+            "spotify_pipeline.pipeline.bronze.ingest_charts.fetch_public_charts",
             return_value=_songs_payload(),
         ),
-        patch("spotify_pipeline.pipeline.ingest_charts.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.ingest_charts.require_db_url"),
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.ingest_charts.connect_postgres",
+            "spotify_pipeline.pipeline.bronze.ingest_charts.connect_postgres",
             return_value=fake_conn,
         ),
         patch(
-            "spotify_pipeline.pipeline.ingest_charts.call_with_db_retry",
+            "spotify_pipeline.pipeline.bronze.ingest_charts.call_with_db_retry",
             side_effect=lambda db_url, conn, fn: (fn(conn), conn)[1],
         ),
-        patch("spotify_pipeline.pipeline.ingest_charts.write_raw_charts") as write_raw,
-        patch("spotify_pipeline.pipeline.ingest_charts.httpx.Client"),
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.write_raw_charts") as write_raw,
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.httpx.Client"),
     ):
         result = ingest_charts(wm, run_id="run123", write_fs=False)
 
@@ -80,12 +80,12 @@ def test_ingest_charts_rejects_watermark_mismatch() -> None:
 
     with (
         patch(
-            "spotify_pipeline.pipeline.ingest_charts.fetch_public_charts",
+            "spotify_pipeline.pipeline.bronze.ingest_charts.fetch_public_charts",
             return_value=_songs_payload("2026-11-12"),
         ),
-        patch("spotify_pipeline.pipeline.ingest_charts.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.ingest_charts.require_db_url"),
-        patch("spotify_pipeline.pipeline.ingest_charts.httpx.Client"),
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.require_db_url"),
+        patch("spotify_pipeline.pipeline.bronze.ingest_charts.httpx.Client"),
         pytest.raises(IngestChartsError, match="mismatch"),
     ):
         ingest_charts(wm, write_fs=False)

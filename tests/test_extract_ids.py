@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from spotify_pipeline.pipeline.extract_ids import (
+from spotify_pipeline.pipeline.bronze.extract_ids import (
     ExtractIdsError,
     extract_ids,
     ids_from_bronze_payload,
@@ -67,10 +67,10 @@ def test_extract_ids_reads_latest_raw_charts() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.extract_ids.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.extract_ids.require_db_url"),
+        patch("spotify_pipeline.pipeline.bronze.extract_ids.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.bronze.extract_ids.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.extract_ids.connect_postgres",
+            "spotify_pipeline.pipeline.bronze.extract_ids.connect_postgres",
             return_value=fake_conn,
         ),
     ):
@@ -93,10 +93,10 @@ def test_extract_ids_missing_bronze_row() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.extract_ids.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.extract_ids.require_db_url"),
+        patch("spotify_pipeline.pipeline.bronze.extract_ids.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.bronze.extract_ids.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.extract_ids.connect_postgres",
+            "spotify_pipeline.pipeline.bronze.extract_ids.connect_postgres",
             return_value=fake_conn,
         ),
         pytest.raises(ExtractIdsError, match="no Bronze raw_charts"),

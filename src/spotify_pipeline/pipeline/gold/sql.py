@@ -1,4 +1,4 @@
-"""Gold SQL templates — load/check docs/sql/gold_queries.sql.
+"""Gold SQL templates — load/check docs/sql/gold/gold_queries.sql.
 
 Runtime query builders only (not VIEW DDL). Used by gold readers.
 """
@@ -55,14 +55,10 @@ def sql_missing_features(watermark: Watermark, *, top_n: int) -> str:
     template = _gold_query("missing_features")
     for placeholder in (_SQL_BASE_JOIN_PLACEHOLDER, _SQL_LIMIT_PLACEHOLDER):
         if placeholder not in template:
-            raise GoldError(
-                f"SQL template missing {placeholder}: {SQL_GOLD_QUERIES}"
-            )
+            raise GoldError(f"SQL template missing {placeholder}: {SQL_GOLD_QUERIES}")
     base = sql_fact_chart_left_join_dim_track(watermark).rstrip().rstrip(";")
-    return (
-        template.replace(_SQL_BASE_JOIN_PLACEHOLDER, base).replace(
-            _SQL_LIMIT_PLACEHOLDER, str(int(top_n))
-        )
+    return template.replace(_SQL_BASE_JOIN_PLACEHOLDER, base).replace(
+        _SQL_LIMIT_PLACEHOLDER, str(int(top_n))
     )
 
 

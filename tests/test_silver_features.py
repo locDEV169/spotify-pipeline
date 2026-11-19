@@ -88,10 +88,10 @@ def test_build_dim_track_features_hits_and_misses() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.silver.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.silver.require_db_url"),
+        patch("spotify_pipeline.pipeline.silver.build.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.silver.build.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.silver.connect_postgres",
+            "spotify_pipeline.pipeline.silver.build.connect_postgres",
             return_value=fake_conn,
         ),
     ):

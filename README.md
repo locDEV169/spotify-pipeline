@@ -74,8 +74,33 @@ Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6*
 | Tests | `pytest` (+ recorded fixtures later) |
 | Packaging | `pip` + `venv` + `pyproject.toml` |
 
-Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/` (incl. `gold/`), `state/`, `analytics/`. Silver + Gold builders live; `analytics/*` / backfill / offline still stub.
+Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/` (layer packages), `state/`, `analytics/`. Silver + Gold builders live; `analytics/*` / backfill / offline still stub.
 
+### Pipeline packages (`src/spotify_pipeline/pipeline/`)
+
+| Path | Role |
+|------|------|
+| `bronze/` | C8 writers + C9 charts ingest + Bronze ID extract |
+| `enrich/` | C9 Spotify + ReccoBeats enrich → Bronze |
+| `silver/` | C10 fact/dims builders + LEFT JOIN helper |
+| `gold/` | C11 readers + SQL templates + `build_gold` |
+| `backfill/` | C12 ReccoBeats gap backfill (stub) |
+| `run.py` | C14 Bronze-cycle orchestration |
+
+## SQL layout (`docs/sql/`)
+
+| Path | Role |
+|------|------|
+| [`docs/sql/init/music_schema.sql`](docs/sql/init/music_schema.sql) | DDL bootstrap: schema `music` + Bronze/Silver tables + Gold VIEWs |
+| [`docs/sql/silver/`](docs/sql/silver/) | Silver runtime templates (e.g. BR-6 `fact_chart` LEFT JOIN `dim_track`) |
+| [`docs/sql/gold/`](docs/sql/gold/) | Gold runtime templates (`gold_queries.sql`) + smoke checks (`gold_check.sql`) |
+
+Apply DDL once (idempotent):
+
+```bash
+python scripts/ddl/apply_music_ddl.py
+# or: python scripts/ddl/apply_music_ddl.py docs/sql/init/music_schema.sql
+```
 
 ## Scripts layout
 
@@ -83,10 +108,10 @@ Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/
 |--------|---------|
 | `scripts/check/` | smoke probes (`check_spotify`, `check_spotify_user`, `check_supabase`, `check_reccobeats`) |
 | `scripts/bronze/` | `load_raw_*` / `clear_raw_*` |
-| `scripts/ddl/` | `apply_music_ddl` |
+| `scripts/ddl/` | `apply_music_ddl` (default → `docs/sql/init/music_schema.sql`) |
 | `scripts/auth/` | `spotify_login` |
 
-**Bronze store of record:** Postgres `music.raw_*` (jsonb + `ingested_at`) via `pipeline/bronze.py` (C8). Optional dual-write JSON under `data/bronze/` (Assumptions #4) with envelope `ingested_at` — FS does not replace SoR.
+**Bronze store of record:** Postgres `music.raw_*` (jsonb + `ingested_at`) via `pipeline/bronze/` writers (C8). Optional dual-write JSON under `data/bronze/` (Assumptions #4) with envelope `ingested_at` — FS does not replace SoR.
 
 For long `load_raw_*` loops, set `SUPABASE_DB_URL` to Session pooler **`…pooler.supabase.com:5432`**. Transaction pooler **:6543** can raise pg8000 `08P01` / `26000` prepared-statement errors; Direct `db.<ref>:5432` may time out on some networks.
 
@@ -101,7 +126,7 @@ python scripts/check/check_supabase.py
 ```bash
 # Requires SUPABASE_DB_URL in .env (Dashboard → Database → Connect)
 python scripts/ddl/apply_music_ddl.py
-python scripts/ddl/apply_music_ddl.py docs/sql/music_schema.sql   # optional path
+python scripts/ddl/apply_music_ddl.py docs/sql/init/music_schema.sql   # optional path
 ```
 Does **not** touch weather tables. Idempotent (`IF NOT EXISTS`).
 
@@ -136,7 +161,49 @@ python -m spotify_pipeline enrich-reccobeats \
 # Skip re-ingest when Bronze charts already exist:
 python -m spotify_pipeline run --chart-date 2026-11-12 --skip-ingest
 ```
-`scripts/bronze/*` remain smoke helpers only (not watermark stages). Silver/Gold deferred.
+`scripts/bronze/*` remain smoke helpers only (not watermark stages). `run` stays Bronze-only (does not call Silver/Gold).
+
+## Silver layer (C10)
+
+Reads **only** Bronze `music.raw_*` — no HTTP. One-pass upsert into curated tables.
+
+| Object | Role |
+|--------|------|
+| `music.fact_chart` | Chart ranks (`rank`, `prev_rank`, `streams` nullable on `public/v0`) |
+| `music.dim_track` | Track metadata + ReccoBeats features + `features_found` |
+| `music.dim_artist` / `bridge_track_artist` | Artists + track↔artist links |
+| Runtime SQL | [`docs/sql/silver/silver_fact_chart_left_join_dim_track.sql`](docs/sql/silver/silver_fact_chart_left_join_dim_track.sql) — BR-6 LEFT JOIN (chart rows never dropped for missing features) |
+
+```bash
+python -m spotify_pipeline build-silver \
+  --chart-date 2026-11-12 \
+  --chart-type weekly_top_songs \
+  --country global
+```
+
+Smoke watermark (prior live): `fact≈50` / `dim_track≈50` / `dim_artist≈59` / features hits≈32 misses≈18.
+
+## Gold layer (C11)
+
+Reads **only** Silver (tables/VIEWs) — no HTTP, no Bronze re-parse. Formal SCD2 table **deferred** (query history from append-only `fact_chart` if needed).
+
+| Serving object | Role |
+|----------------|------|
+| VIEW `music.gold_feature_coverage` | Chart rows / features_found % (LEFT JOIN spirit) |
+| VIEW `music.gold_movers` | `rank_delta` where `prev_rank IS NOT NULL` (no new/re-entry taxonomy yet) |
+| VIEW `music.gold_mood_segments` | energy/valence when `features_found=true` (INNER JOIN — intentional; ≠ BR-6 drop) |
+| Runtime SQL | [`docs/sql/gold/gold_queries.sql`](docs/sql/gold/gold_queries.sql) · smoke [`gold_check.sql`](docs/sql/gold/gold_check.sql) |
+| Package | `src/spotify_pipeline/pipeline/gold/` — readers + `build_gold` |
+
+```bash
+python -m spotify_pipeline build-gold \
+  --chart-date 2026-11-12 \
+  --chart-type weekly_top_songs \
+  --country global
+# → coverage % · missing top-N · movers · mood · popularity skip-safe · scd2=deferred
+```
+
+Soft notes: `streams` often NULL; `track_popularity` often absent on Dev Mode → Gold **skips** popularity pairs (does not fail). Mood labels (`energetic`/`tense`/`chill`/`sad`) are Python-derived, not SQL columns.
 
 ## Bronze smoke: load / clear `music.raw_charts`
 ```bash
@@ -218,6 +285,10 @@ These are **undecided** — do not treat as product defaults:
 | Path | Contents |
 |------|----------|
 | [`docs/SPEC.md`](docs/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
+| [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |
+| [`docs/sql/init/`](docs/sql/init/) | DDL bootstrap (`music_schema.sql`) |
+| [`docs/sql/silver/`](docs/sql/silver/) | Silver runtime SQL templates |
+| [`docs/sql/gold/`](docs/sql/gold/) | Gold runtime SQL + check scripts |
 | [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
 | [`architecture/music-pipeline.drawio`](architecture/music-pipeline.drawio) | Editable pipeline diagram |
 | [`architecture/music-pipeline.png`](architecture/music-pipeline.png) | Diagram export |

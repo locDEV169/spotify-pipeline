@@ -60,7 +60,7 @@
 | File | What changed |
 |------|----------------|
 | `docs/CHECKLIST_SPEC_GAPS.md` | §D **W1–W7 [x]** · D04/C-5 closed · F7 capture |
-| `src/spotify_pipeline/pipeline/silver.py` | W1–W6: builders + LEFT JOIN helper + `build_silver` |
+| `src/spotify_pipeline/pipeline/silver/` | W1–W6: builders + LEFT JOIN helper + `build_silver` |
 | `src/spotify_pipeline/cli.py` | `build-silver` → `build_silver()` one-pass |
 | `src/spotify_pipeline/models/*` | Chart/Track/Artist/AudioFeatures |
 | `tests/test_silver_*.py` | W1–W6 unit tests (incl. LEFT JOIN / COALESCE) |
@@ -251,7 +251,7 @@ Preconditions met: **D01+D02** · **Q-C=1**. Silver C10 MVP **complete** (D04 [x
 
 ## D. Silver C10 (W1–W7)
 
-**Links:** [D03](#a-điểm-lệch-d01d12) · [D04](#a-điểm-lệch-d01d12) · [C-5](#b4-code-slices-sau-b1) · [C-2](#b4-code-slices-sau-b1) · SPEC [C10](SPEC.md) · DDL [`docs/sql/music_schema.sql`](sql/music_schema.sql)
+**Links:** [D03](#a-điểm-lệch-d01d12) · [D04](#a-điểm-lệch-d01d12) · [C-5](#b4-code-slices-sau-b1) · [C-2](#b4-code-slices-sau-b1) · SPEC [C10](SPEC.md) · DDL [`docs/sql/init/music_schema.sql`](sql/init/music_schema.sql)
 
 **Fact (locked):** Bronze Stage 4 COMPLETE. Silver reads **only** `music.raw_*` — **no HTTP**. **W1–W7 done:** fact · dims · bridge · features · LEFT JOIN tests · `build_silver` one-pass · docs. Soft SQ-11: `run` still Bronze-only.
 
@@ -431,7 +431,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 
 ## E. Gold C11 (G1–G7)
 
-**Links:** [D05](#a-điểm-lệch-d01d12) · [C-6](#b4-code-slices-sau-b1) · [C-9](#b4-code-slices-sau-b1) *(Nice analytics)* · SPEC [C11](SPEC.md) · [Gold analytics MVP](SPEC.md#gold-analytics-mvp) · DDL [`docs/sql/music_schema.sql`](sql/music_schema.sql) · Silver [§D](#d-silver-c10-w1w7) (W1–W7 done)
+**Links:** [D05](#a-điểm-lệch-d01d12) · [C-6](#b4-code-slices-sau-b1) · [C-9](#b4-code-slices-sau-b1) *(Nice analytics)* · SPEC [C11](SPEC.md) · [Gold analytics MVP](SPEC.md#gold-analytics-mvp) · DDL [`docs/sql/init/music_schema.sql`](sql/init/music_schema.sql) · Silver [§D](#d-silver-c10-w1w7) (W1–W7 done)
 
 **Fact (locked):** Silver C10 MVP **COMPLETE** (W1–W7). Gold must read **only** Silver (`music.fact_chart` / `dim_*` / bridge as needed) — **no HTTP**, no Bronze re-parse required for MVP. DDL already has VIEWs: `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`. **G1–G6 done** (`build_gold` / CLI `build-gold`; G5 SCD2 deferred). Remaining: G7 docs polish · `analytics/*` stubs (C-9) · backfill/offline.
 

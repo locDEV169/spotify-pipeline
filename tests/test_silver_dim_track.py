@@ -86,10 +86,10 @@ def test_build_dim_track_from_bronze() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.silver.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.silver.require_db_url"),
+        patch("spotify_pipeline.pipeline.silver.build.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.silver.build.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.silver.connect_postgres",
+            "spotify_pipeline.pipeline.silver.build.connect_postgres",
             return_value=fake_conn,
         ),
     ):
@@ -119,10 +119,10 @@ def test_build_dim_track_partial_miss() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.silver.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.silver.require_db_url"),
+        patch("spotify_pipeline.pipeline.silver.build.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.silver.build.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.silver.connect_postgres",
+            "spotify_pipeline.pipeline.silver.build.connect_postgres",
             return_value=fake_conn,
         ),
     ):
@@ -142,10 +142,10 @@ def test_build_dim_track_all_missing_fails() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.silver.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.silver.require_db_url"),
+        patch("spotify_pipeline.pipeline.silver.build.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.silver.build.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.silver.connect_postgres",
+            "spotify_pipeline.pipeline.silver.build.connect_postgres",
             return_value=fake_conn,
         ),
         pytest.raises(SilverError, match="no Bronze raw_spotify track"),
@@ -162,10 +162,10 @@ def test_build_dim_track_idempotent_sql() -> None:
     settings.supabase_db_url = "postgresql://u:p@localhost/db"
 
     with (
-        patch("spotify_pipeline.pipeline.silver.get_settings", return_value=settings),
-        patch("spotify_pipeline.pipeline.silver.require_db_url"),
+        patch("spotify_pipeline.pipeline.silver.build.get_settings", return_value=settings),
+        patch("spotify_pipeline.pipeline.silver.build.require_db_url"),
         patch(
-            "spotify_pipeline.pipeline.silver.connect_postgres",
+            "spotify_pipeline.pipeline.silver.build.connect_postgres",
             return_value=fake_conn,
         ),
     ):

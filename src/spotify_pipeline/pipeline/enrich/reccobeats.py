@@ -22,7 +22,7 @@ from spotify_pipeline.db.postgres import (
     require_db_url,
 )
 from spotify_pipeline.pipeline.bronze import write_raw_reccobeats
-from spotify_pipeline.pipeline.extract_ids import ExtractIdsError, extract_ids
+from spotify_pipeline.pipeline.bronze.extract_ids import ExtractIdsError, extract_ids
 from spotify_pipeline.state.watermark import Watermark, WatermarkError
 
 _SOURCE = "reccobeats"

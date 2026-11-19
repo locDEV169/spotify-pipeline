@@ -44,7 +44,7 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
 2. **MVP chart source:** Charts `public/v0` weekly Global top 50 (unauthenticated) — `streams = NULL`.
 3. **Daily Top 200 + streams (`auth/v0`):** out of MVP until Bearer-user access and ToS acceptance are confirmed ⚠️.
 4. **Storage MVP (locked 18/11/2026, Q-C=1):**
-   - **SoR = Postgres `music.*`** (Supabase): Bronze `raw_*` jsonb + `ingested_at`; Silver/Gold tables/views per DDL (`docs/sql/music_schema.sql`).
+   - **SoR = Postgres `music.*`** (Supabase): Bronze `raw_*` jsonb + `ingested_at`; Silver/Gold tables/views per DDL (`docs/sql/init/music_schema.sql`).
    - Local `data/bronze/` = **optional dual-write** JSON envelope only — không thay SoR.
    - Historical note: early draft used FS + SQLite; that is **not** MVP SoR anymore.
 5. **Orchestration MVP:** CLI (+ optional OS cron later). No Airflow/Prefect yet ⚠️.
@@ -147,13 +147,11 @@ spotify-data-pipeline/
       audio_features.py         # AudioFeatures + features_found
     pipeline/                   # ← orchestration / medallion (tách riêng)
       __init__.py
-      ingest_charts.py
-      enrich_spotify.py
-      enrich_reccobeats.py
-      bronze.py
-      silver.py
-      gold.py
-      backfill.py
+      bronze/                   # writers + ingest_charts + extract_ids
+      enrich/                   # spotify + reccobeats
+      silver/                   # build_silver + LEFT JOIN helper
+      gold/                     # readers + sql + build_gold
+      backfill/                 # C12 stub
       run.py                    # 1 cycle: watermark → … → summary
     state/                      # ← watermark only (tách riêng)
       __init__.py
@@ -262,11 +260,11 @@ flowchart LR
 | C5 | ReccoBeats client | `clients/reccobeats.py` | Batch ≤40 `?ids=`; map IDs; 429 | C2 |
 | C6 | Models | `models/*` | Validate ChartEntry / Track / Artist / AudioFeatures | — |
 | C7 | Watermark | `state/watermark.py` | `(chart_date, chart_type, country)` | C1 |
-| C8 | Bronze writer | `pipeline/bronze.py` | Persist raw JSON + `ingested_at` | C3–C5 |
-| C9 | Ingest / enrich | `pipeline/ingest_*.py`, `enrich_*.py` | Charts → validate → Bronze; Spotify/RB enrich | C3–C6, C8 |
-| C10 | Silver builder | `pipeline/silver.py` | `fact_chart` + dims; **LEFT JOIN only** | C8, C9 |
-| C11 | Gold builder | `pipeline/gold.py` | Movers, SCD2 (nice), mood (`features_found=true`) | C10 |
-| C12 | Backfill | `pipeline/backfill.py` | Re-query ReccoBeats where `features_found=false` | C5, C10 |
+| C8 | Bronze writer | `pipeline/bronze/` | Persist raw JSON + `ingested_at` | C3–C5 |
+| C9 | Ingest / enrich | `pipeline/bronze/ingest_*.py`, `pipeline/enrich/` | Charts → validate → Bronze; Spotify/RB enrich | C3–C6, C8 |
+| C10 | Silver builder | `pipeline/silver/` | `fact_chart` + dims; **LEFT JOIN only** | C8, C9 |
+| C11 | Gold builder | `pipeline/gold/` | Movers, SCD2 (nice), mood (`features_found=true`) | C10 |
+| C12 | Backfill | `pipeline/backfill/` | Re-query ReccoBeats where `features_found=false` | C5, C10 |
 | C13 | Analytics | `analytics/*` | Đọc Gold → report (`--report`); không gọi API | C11 |
 | C14 | CLI / run | `cli.py`, `pipeline/run.py` | 1 cycle + exit codes + coverage % | all |
 | C15 | Fixtures / offline | `tests/fixtures/` | E2E 26/40 + batch41; `run --offline` | C5–C13 |
@@ -488,6 +486,7 @@ CI: offline tests only.
 | 2026-11-17 | Field notes: live probe Charts / Web API / ReccoBeats; trạng thái schema Supabase (chỉ weather); DDL deltas (`run_id`/`source`, indexes); config Supabase đã có trong code. **Không** chạy DDL; **không** đụng bảng weather. |
 | 2026-11-17 | Quyết định: bảng nhạc nằm schema Postgres **`music`** (tách khỏi weather/`public`). Chỉ sync `docs/SPEC.md` (không Notion). DDL vẫn **chưa chạy**. |
 | 2026-11-17 | Thêm `docs/sql/music_schema.sql` + `scripts/ddl/apply_music_ddl.py` (schema `music.*`, không đụng weather). Apply cần `SUPABASE_DB_URL` — **chưa apply** nếu URI chưa có trong `.env`. |
+| 2026-11-19 | SQL layout: DDL → `docs/sql/init/music_schema.sql`; Silver LEFT JOIN → `docs/sql/silver/`; Gold templates → `docs/sql/gold/`. |
 | 2026-11-17 | **DDL applied** trên Supabase schema `music` (10 objects: raw_*/fact_chart/dim_*/bridge/gold_*). Weather `public` giữ nguyên. Script migrate: `python scripts/ddl/apply_music_ddl.py`. |
 | 2026-11-18 | Stage 4 fidelity: `extract_ids` từ Bronze `raw_charts`; enrich + `run` Bronze-only logical fan-out (Q-A=2, Q-B=2). Coverage/`features_found` Silver **hoãn**. Checklist: `docs/CHECKLIST_SPEC_GAPS.md`. |
 | 2026-11-18 | Doc lock: **Q-C=1** Postgres `music.*` SoR (Assumption #4 + Tech Stack); **Q-D=2** single-ID Spotify MVP (Assumption #8 + Open Q1 closed for MVP); README synced. Batch `?ids=` / Silver builders vẫn deferred. |
@@ -872,14 +871,14 @@ CREATE INDEX IF NOT EXISTS idx_bridge_track_artist_artist_id ON music.bridge_tra
 
 | File | Vai trò |
 |------|---------|
-| [`docs/sql/music_schema.sql`](sql/music_schema.sql) | DDL đầy đủ: `CREATE SCHEMA music` + tables/indexes/views `music.*` (+ `run_id`/`source`, `peak_rank` nullable, `spotify_track_ids`, Gold views) |
+| [`docs/sql/init/music_schema.sql`](sql/init/music_schema.sql) | DDL đầy đủ: `CREATE SCHEMA music` + tables/indexes/views `music.*` (+ `run_id`/`source`, `peak_rank` nullable, `spotify_track_ids`, Gold views) |
 | [`scripts/ddl/apply_music_ddl.py`](../scripts/ddl/apply_music_ddl.py) | Chạy SQL qua `SUPABASE_DB_URL` (`pg8000`); abort nếu SQL đụng weather |
 
 ```bash
 # 1) Thêm SUPABASE_DB_URL vào .env (Dashboard → Database → Connect → URI)
 # 2) Apply
 python scripts/ddl/apply_music_ddl.py
-# hoặc paste music_schema.sql vào Dashboard → SQL Editor → Run
+# hoặc paste docs/sql/init/music_schema.sql vào Dashboard → SQL Editor → Run
 ```
 
 **Trạng thái (17/11/2026):** `python scripts/ddl/apply_music_ddl.py` đã **exit 0** — schema `music` có 10 objects (`raw_charts`, `raw_spotify`, `raw_reccobeats`, `fact_chart`, `dim_track`, `dim_artist`, `bridge_track_artist`, `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`). Weather `public` vẫn còn đủ 3 bảng. Idempotent: chạy lại script an toàn (`IF NOT EXISTS`). **Không** Notion. Rotate `service_role` vẫn do user trên Dashboard nếu key từng lộ.

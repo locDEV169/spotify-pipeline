@@ -13,13 +13,13 @@ from typing import Any
 
 import httpx
 
-from spotify_pipeline.pipeline.enrich_reccobeats import (
+from spotify_pipeline.pipeline.enrich.reccobeats import (
     EnrichReccoBeatsError,
     enrich_reccobeats,
 )
-from spotify_pipeline.pipeline.enrich_spotify import EnrichSpotifyError, enrich_spotify
-from spotify_pipeline.pipeline.extract_ids import ExtractIdsError, extract_ids
-from spotify_pipeline.pipeline.ingest_charts import IngestChartsError, ingest_charts
+from spotify_pipeline.pipeline.enrich.spotify import EnrichSpotifyError, enrich_spotify
+from spotify_pipeline.pipeline.bronze.extract_ids import ExtractIdsError, extract_ids
+from spotify_pipeline.pipeline.bronze.ingest_charts import IngestChartsError, ingest_charts
 from spotify_pipeline.state.watermark import Watermark
 
 
