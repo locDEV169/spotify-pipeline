@@ -38,7 +38,7 @@ Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Airflow/Prefe
 
 ![Pipeline diagram](architecture/music-pipeline.png)
 
-Editable source: [`architecture/music-pipeline.drawio`](architecture/music-pipeline.drawio) · Full design: [`docs/SPEC.md`](docs/SPEC.md)
+Editable source: [`architecture/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) · Full design: [`docs/SPEC.md`](docs/SPEC.md)
 
 ```text
 Charts public/v0 ──► Bronze ──► extract IDs ──┬──► Spotify Web API ──► dim_track / dim_artist
@@ -290,8 +290,8 @@ These are **undecided** — do not treat as product defaults:
 | [`docs/sql/silver/`](docs/sql/silver/) | Silver runtime SQL templates |
 | [`docs/sql/gold/`](docs/sql/gold/) | Gold runtime SQL + check scripts |
 | [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
-| [`architecture/music-pipeline.drawio`](architecture/music-pipeline.drawio) | Editable pipeline diagram |
-| [`architecture/music-pipeline.png`](architecture/music-pipeline.png) | Diagram export |
+| [`architecture/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) | Editable pipeline diagram |
+| [`architecture/music-pipeline.png`](architecture/version_1/music-pipeline.png) | Diagram export |
 
 ## Ask before changing
 

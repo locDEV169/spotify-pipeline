@@ -201,9 +201,9 @@ Primary diagram (locked stack §8 / former Notion `music-pipeline-v2`):
 
 | File | Meaning |
 |------|---------|
-| [`architecture/music-pipeline.png`](../architecture/music-pipeline.png) | Pipeline diagram |
-| [`architecture/music-pipeline.drawio`](../architecture/music-pipeline.drawio) | Editable draw.io source |
-| [`architecture/music-pipeline.drawio.zip`](../architecture/music-pipeline.drawio.zip) | Zipped source (Notion export) |
+| [`architecture/version_1/music-pipeline.png`](../architecture/version_1/music-pipeline.png) | Pipeline diagram |
+| [`architecture/version_1/music-pipeline.drawio`](../architecture/version_1/music-pipeline.drawio) | Editable draw.io source |
+| [`architecture/version_1/music-pipeline.drawio.zip`](../architecture/version_1/music-pipeline.drawio.zip) | Zipped source (Notion export) |
 
 ```mermaid
 flowchart LR
