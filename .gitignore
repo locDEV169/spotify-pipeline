@@ -35,3 +35,12 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# React / TanStack Start
+node_modules/
+.output/
+.tanstack/
+.nitro/
+.env.*
+!.env.example
+*.tsbuildinfo
