@@ -4,7 +4,15 @@
 **Source of truth:** [`docs/SPEC.md`](SPEC.md)  
 **Last updated:** 2026-11-19  
 
-### Files updated this pass (Gold C11 checklist §E)
+### Files updated this pass (Gold G1)
+
+| File | What changed |
+|------|----------------|
+| `src/spotify_pipeline/pipeline/gold.py` | **G1:** `query_feature_coverage` / `query_missing_features` / report |
+| `tests/test_gold_feature_coverage.py` | G1 offline unit tests |
+| `docs/CHECKLIST_SPEC_GAPS.md` | §E **G1 [x]** · B0 D05=**code** (partial) |
+
+### Prior pass (Gold C11 checklist §E)
 
 | File | What changed |
 |------|----------------|
@@ -64,7 +72,7 @@ Tick `Status`: `[ ]` open · `[x]` done (đã quyết + đã update docs/code th
 | [x] | D02 | Parallel fan-out | SP ∥ RB từ EX | **Done 18/11:** `run_bronze` extract once → SP → RB (logical) | **Should** | **code** (Q-B=2) |
 | [x] | D03 | `features_found` | Cột Silver + Gold coverage | **W4 done:** `dim_track.features_found` từ Bronze ReccoBeats | **Must** | **code** (Q-E=1→W4) |
 | [x] | D04 | Silver C10 | `fact_chart` + dims + LEFT JOIN | **W1–W6 done:** `build_silver` one-pass | **Must** | **code** |
-| [ ] | D05 | Gold / backfill / offline | C11–C12; `run --offline` | `gold` / `backfill` stub; `run` Bronze-only done | **Must** | Code (Silver+) |
+| [ ] | D05 | Gold / backfill / offline | C11–C12; `run --offline` | **G1 done** (coverage reader); movers/mood/CLI + backfill/offline open | **Must** | **code** (partial) |
 | [ ] | D06 | C2 HTTP 429 | Shared session + Retry-After | `clients/http.py` stub; Spotify chưa 429; RB tự retry | **Should** | Nice / Code |
 | [x] | D07 | Spotify batch | `?ids=` + `/{id}` | Chỉ `/{id}` — **accepted MVP** (Q-D=2) | **Should** | **Doc** (batch deferred) |
 | [x] | D08 | Models C6 | Track / Artist / AudioFeatures | **Track+Artist+AudioFeatures done (W2–W4)** | **Should** | **code** |
@@ -81,7 +89,7 @@ Tick `Status`: `[ ]` open · `[x]` done (đã quyết + đã update docs/code th
 
 Với từng D01–D12, chọn một rồi ghi Change log SPEC:
 
-- [ ] Đã phân loại hết: **sửa SPEC (chấp nhận lệch)** / **sửa code** / **hoãn** *(D05–D06, D08, D09, D12 còn mở; D04=**code**)*
+- [ ] Đã phân loại hết: **sửa SPEC (chấp nhận lệch)** / **sửa code** / **hoãn** *(D05 partial **code**; D06, D09, D12 còn mở; D04=**code**)*
 
 | ID | Phân loại (SPEC / code / hoãn) | Note |
 |----|--------------------------------|------|
@@ -89,7 +97,7 @@ Với từng D01–D12, chọn một rồi ghi Change log SPEC:
 | D02 | **code** | Chubby: 1 extract → fan-out; Q-B=2 (logical sequential OK) |
 | D03 | **code** (done W4) | Chubby: coverage/`features_found` vào Silver; Q-E=1 |
 | D04 | **code** (done W1–W6) | Silver C10 MVP via `build_silver`; W7 docs |
-| D05 | | |
+| D05 | **code** (partial — G1) | Coverage reader done; G2–G6 + backfill/offline remain |
 | D06 | | Nice: shared 429 |
 | D07 | **Doc** | Q-D=2: single-ID MVP; batch `?ids=` deferred (no C-3 until probe) — 18/11 |
 | D08 | | |
@@ -169,7 +177,7 @@ Với từng D01–D12, chọn một rồi ghi Change log SPEC:
 - [ ] **C-3** C4 Spotify `?ids=` + fallback — **deferred** (Q-D=2; chỉ reopen sau F5 / Q-D≠2)
 - [ ] **C-4** C2 `http.py` + wire 429 Spotify/ReccoBeats *(Nice D3)*
 - [x] **C-5** C10 Silver: fact + dims + LEFT JOIN + `features_found` → **W1–W6 done** (`build_silver`)
-- [ ] **C-6** C11 Gold + coverage % → **§E G1–G6** (active)
+- [ ] **C-6** C11 Gold + coverage % → **§E G1–G6** (G1 done; G2–G6 active)
 - [ ] **C-7** C12 backfill `features_found=false`
 - [x] **C-8** C14 `run` Bronze-only (extract once → SP → RB); `--offline` vẫn chưa
 - [ ] **C-9** C13 analytics `--report` (Nice)
@@ -388,7 +396,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 
 **Links:** [D05](#a-điểm-lệch-d01d12) · [C-6](#b4-code-slices-sau-b1) · [C-9](#b4-code-slices-sau-b1) *(Nice analytics)* · SPEC [C11](SPEC.md) · [Gold analytics MVP](SPEC.md#gold-analytics-mvp) · DDL [`docs/sql/music_schema.sql`](sql/music_schema.sql) · Silver [§D](#d-silver-c10-w1w7) (W1–W7 done)
 
-**Fact (locked):** Silver C10 MVP **COMPLETE** (W1–W7). Gold must read **only** Silver (`music.fact_chart` / `dim_*` / bridge as needed) — **no HTTP**, no Bronze re-parse required for MVP. DDL already has VIEWs: `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`. Stubs: `pipeline/gold.py`, `cli.py build-gold`, `analytics/{movers,mood,summary}.py`.
+**Fact (locked):** Silver C10 MVP **COMPLETE** (W1–W7). Gold must read **only** Silver (`music.fact_chart` / `dim_*` / bridge as needed) — **no HTTP**, no Bronze re-parse required for MVP. DDL already has VIEWs: `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`. **G1 done** (`query_feature_coverage` / missing top-N). Remaining stubs: `cli.py build-gold`, movers/mood, `analytics/{movers,mood,summary}.py`.
 
 **Diagram ↔ DDL mismatches (Fact — do not silently “fix” without soft decision):**
 
@@ -404,8 +412,8 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 - [x] Q-C=1 Postgres `music.*` SoR
 - [x] Gold VIEWs exist in DDL / applied schema (`gold_feature_coverage`, `gold_movers`, `gold_mood_segments`)
 - [x] At least one watermark populated in Silver (F7 ≈50/50/59; F4 hits/misses noted)
-- [ ] B0 **D05** classified (**code** recommended when G1 starts)
-- [ ] Soft **GQ-*** answered or explicitly “proceed with Recommendation”
+- [x] B0 **D05** classified (**code**, partial — G1 done; G2–G6 + backfill/offline open)
+- [x] Soft **GQ-*** proceed with Recommendation for G1 (GQ-1 / GQ-7); others still soft for later slices
 
 ### 2. Soft decisions (Recommendations — not Facts)
 
@@ -426,7 +434,7 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
 
 #### G1 — Feature coverage (validate `gold_feature_coverage`)
 
-- **Status:** [ ]
+- **Status:** [x] **DONE** (2026-11-19)
 - **In:** Query existing `music.gold_feature_coverage` for watermark; optional missing top-N list via Silver LEFT JOIN (`features_found is not true`)
 - **Out:** Movers/mood math, SCD2, HTTP, Bronze reads, MATERIALIZED refresh unless GQ-1 changes
 - **Steps:**
@@ -434,13 +442,13 @@ When Silver coding starts (W1 kickoff): set B0 **D04 = code** (done in this pass
   2. Add thin reader in `pipeline/gold.py` filtered by watermark (GQ-7)
   3. Optional: list missing top-N ranks (SPEC coverage report) without dropping chart grain
   4. Unit test against fixture/SQL expectations (no network)
-- **Files:** `src/spotify_pipeline/pipeline/gold.py` · tests · reuse Silver LEFT JOIN helper if useful
+- **Files:** `src/spotify_pipeline/pipeline/gold.py` · `tests/test_gold_feature_coverage.py` · reuses `sql_fact_chart_left_join_dim_track`
 - **AC:**
   - Given Silver for watermark W, when coverage runs, then `chart_rows` / `features_found_rows` / `features_found_pct` match VIEW
   - Coverage path uses LEFT JOIN semantics for chart completeness (BR-6 spirit)
   - No HTTP
 - **Depends:** Preconditions · GQ-1 · GQ-7
-- **Closes / advances:** D05 (partial) · **C-6** (start)
+- **Closes / advances:** D05 (partial) · **C-6** (start) — **done**
 
 #### G2 — Movers (`gold_movers` + streams null-safe)
 
@@ -588,9 +596,9 @@ Optional PR sizing: G1 alone (S) · G2+G3 · G4+G5 (soft/docs-heavy) · G6 · G7
 |------|-----------|
 | **Fact** | C7–C9 Bronze landing (ingest + enrich → `raw_*`); SoR Postgres; FS dual-write optional |
 | **Fact** | Enrich ID source = **Bronze `raw_charts`** via `extract_ids` (C-1 done) |
-| **Fact** | `run` Bronze-only; **Silver C10 W1–W7 complete** (`build_silver`); Gold checklist §E drafted; `gold.py` / backfill / offline still stub |
+| **Fact** | `run` Bronze-only; **Silver C10 W1–W7 complete**; **Gold G1** coverage reader done; G2–G6 / backfill / offline still open |
 | **Fact** | Gold DDL VIEWs present (`gold_feature_coverage` / `gold_movers` / `gold_mood_segments`); Gold **reads only** Silver (no HTTP) |
 | **Chốt 18/11** | Q-A=2 · Q-B=2 · **Q-C=1** · **Q-D=2** · Q-E=1 (**D03/D04 closed**) · Q-F=2 |
-| **Doc done 18/11–19/11** | D03 · D04 · D07 · D08 · D10 · D11 · DOC-1 · DOC-2 · DOC-5 · F1/F3/F4/F7 · W1–W7 · **§E Gold G1–G7** |
+| **Doc done 18/11–19/11** | D03 · D04 · D07 · D08 · D10 · D11 · DOC-1 · DOC-2 · DOC-5 · F1/F3/F4/F7 · W1–W7 · §E · **G1** |
 | **Soft (SQ-* / GQ-*)** | SQ-11 still soft; **GQ-1…GQ-10** Recommendations for Gold (see §E) |
-| **Open** | D05 · D06 · D09 · D12 · Nice D3→D1→D2 · Gold G1–G7 · SQ-11 · GQ-* Answers |
+| **Open** | D05 (partial) · D06 · D09 · D12 · Nice D3→D1→D2 · Gold **G2–G7** · SQ-11 · GQ-* Answers |
