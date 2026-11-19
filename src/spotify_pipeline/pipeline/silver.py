@@ -712,11 +712,13 @@ def sql_fact_chart_left_join_dim_track(watermark: Watermark | None = None) -> st
             f"  AND f.country = {_sql_str(watermark.country)}"
         )
     template = _load_fact_chart_left_join_sql()
-    if _SQL_WHERE_PLACEHOLDER not in template:
+    count = template.count(_SQL_WHERE_PLACEHOLDER)
+    if count != 1:
         raise SilverError(
-            f"SQL template missing {_SQL_WHERE_PLACEHOLDER}: {_SQL_FACT_LEFT_JOIN}"
+            f"SQL template must contain {_SQL_WHERE_PLACEHOLDER} exactly once "
+            f"(found {count}; check comments): {_SQL_FACT_LEFT_JOIN}"
         )
-    return template.replace(_SQL_WHERE_PLACEHOLDER, where)
+    return template.replace(_SQL_WHERE_PLACEHOLDER, where, 1)
 
 
 def build_silver(

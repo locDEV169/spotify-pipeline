@@ -1,6 +1,6 @@
 # Spotify Charts → Web API → ReccoBeats Pipeline
 
-**Status:** Bronze Stage 4 locked + **Silver C10 W1–W6** (`build-silver` one-pass: fact → dims → bridge → features). SoR = Postgres `music.*`. Gold/backfill/`run --offline` still stubs. `run` stays Bronze-only (SQ-11). Spotify = single `/{id}` (Q-D=2).  
+**Status:** Bronze Stage 4 locked + **Silver C10** (`build-silver`) + **Gold C11** (`build-gold`: coverage / movers / mood / popularity skip-safe; SCD2 deferred). SoR = Postgres `music.*`. Backfill / `run --offline` still open. `run` stays Bronze-only (SQ-11 / GQ-8). Spotify = single `/{id}` (Q-D=2).  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS.  
 **Gaps checklist:** [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md)
 
@@ -27,10 +27,10 @@ New Spotify developer apps cannot use Audio Features / Audio Analysis ([Spotify 
 - Charts **`public/v0`** — weekly Global top 50 (unauthenticated); `streams = NULL`
 - Bronze SoR = Postgres `music.raw_*` (+ optional FS dual-write under `data/bronze/`)
 - Silver = Postgres `music.fact_chart` / `dim_*` / `bridge_*` via `build-silver` (LEFT JOIN + `features_found`)
-- Gold target = Postgres views (DDL ready; builder deferred)
+- Gold = Postgres views + `build-gold` one-pass (coverage / movers / mood; popularity skip if null; formal SCD2 deferred)
 - Spotify enrich = single `/{id}` (batch `?ids=` deferred)
-- Bronze cycle: `run` (Bronze-only). Silver: `build-silver` per watermark
-- Later: Gold summary (movers, mood, coverage) + offline fixtures + wire `run`→Silver
+- Bronze cycle: `run` (Bronze-only). Silver: `build-silver`. Gold: `build-gold` per watermark (not wired into `run`)
+- Later: offline fixtures + backfill + wire `run`→Silver/Gold + BI
 
 Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Airflow/Prefect, and BI dashboards are **out of MVP / undecided** (see [Open questions](#open-questions)).
 
@@ -74,7 +74,7 @@ Sample of 40 weekly Global track IDs → **26/40** matched. Top ranks **#1–#6*
 | Tests | `pytest` (+ recorded fixtures later) |
 | Packaging | `pip` + `venv` + `pyproject.toml` |
 
-Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/`, `state/`, `analytics/`. Silver C10 live; Gold/analytics/backfill still stub until implemented per SPEC.
+Layout: `src/spotify_pipeline/` with separated `clients/`, `models/`, `pipeline/` (incl. `gold/`), `state/`, `analytics/`. Silver + Gold builders live; `analytics/*` / backfill / offline still stub.
 
 
 ## Scripts layout
@@ -175,7 +175,7 @@ cp .env.example .env            # optional until live Spotify calls
 pytest -q
 ```
 
-Unit tests should pass (`pytest -q`). Bronze commands work today; Silver/Gold/`--offline` still stub:
+Unit tests should pass (`pytest -q`). Bronze / Silver / Gold builders work today; backfill / `--offline` still stub:
 
 ```bash
 python -m spotify_pipeline run \

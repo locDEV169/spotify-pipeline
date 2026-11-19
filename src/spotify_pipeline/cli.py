@@ -245,9 +245,57 @@ def build_silver(
 
 
 @app.command("build-gold")
-def build_gold() -> None:
-    """SPEC C11 — Gold summary / movers / mood."""
-    _not_implemented("build-gold")
+def build_gold_cmd(
+    chart_date: str = typer.Option(
+        ..., "--chart-date", help="Watermark chart date (YYYY-MM-DD)"
+    ),
+    chart_type: str = typer.Option(
+        "weekly_top_songs",
+        "--chart-type",
+        help="MVP: weekly_top_songs",
+    ),
+    country: str = typer.Option("global", "--country", help="Chart country / region"),
+) -> None:
+    """SPEC C11 — Gold one-pass (coverage / movers / mood / popularity skip).
+
+    Does not wire into `run` (GQ-8). SCD2 formal table deferred (GQ-5).
+    """
+    from spotify_pipeline.pipeline.gold import GoldError, build_gold
+    from spotify_pipeline.state.watermark import Watermark, WatermarkError
+
+    try:
+        watermark = Watermark.parse(chart_date, chart_type, country)
+        result = build_gold(watermark)
+    except (WatermarkError, GoldError) as exc:
+        typer.secho(f"FAIL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    cov = result.coverage
+    if cov is None:
+        cov_part = "coverage=none"
+    else:
+        pct = cov.features_found_pct
+        pct_s = "null" if pct is None else str(pct)
+        cov_part = (
+            f"chart_rows={cov.chart_rows} "
+            f"features_found_rows={cov.features_found_rows} "
+            f"features_found_pct={pct_s}"
+        )
+    pop = (
+        f"popularity_skipped=true reason={result.popularity_reason}"
+        if result.popularity_skipped
+        else f"popularity_pairs={result.popularity_pairs}"
+    )
+    typer.echo(
+        "OK build-gold "
+        f"watermark={result.watermark} "
+        f"{cov_part} "
+        f"missing_top={result.missing_count} "
+        f"movers={result.movers_count} "
+        f"mood={result.mood_count} "
+        f"{pop} "
+        f"scd2={result.scd2_status}"
+    )
 
 
 @app.command("backfill-features")
