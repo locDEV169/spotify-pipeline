@@ -176,24 +176,12 @@ These are **undecided** — do not treat as product defaults:
 6. Measured rate-limit thresholds (defensive retries only for now)
 7. Whether the Spotify app owner has Premium (current Dev Mode requirement)
 
-## Web app (React + TanStack Start)
-
-The fullstack web application lives in [`app/`](app/README.md) and runs independently of Python.
-
-```powershell
-cd app
-npm ci
-npm run dev
-```
-
-Open http://127.0.0.1:3000. Includes a starter page and `/api/health`; database integration is pending.
-
-## Pipeline docs
+## Docs
 
 | Path | Contents |
 |------|----------|
 | [`docs/SPEC.md`](docs/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
-| [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Spotify authentication testing guide (Client Credentials + user login / refresh_token) |
+| [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
 | [`architecture/music-pipeline.drawio`](architecture/music-pipeline.drawio) | Editable pipeline diagram |
 | [`architecture/music-pipeline.png`](architecture/music-pipeline.png) | Diagram export |
 
