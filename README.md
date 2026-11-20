@@ -30,15 +30,16 @@ New Spotify developer apps cannot use Audio Features / Audio Analysis ([Spotify 
 - Gold = Postgres views + `build-gold` one-pass (coverage / movers / mood; popularity skip if null; formal SCD2 deferred)
 - Spotify enrich = single `/{id}` (batch `?ids=` deferred)
 - Bronze cycle: `run` (Bronze-only). Silver: `build-silver`. Gold: `build-gold` per watermark (not wired into `run`)
-- Later: offline fixtures + backfill + wire `run`→Silver/Gold + BI
+- Later: offline fixtures + C12 feature backfill + BI
+- **Orchestration v2 (specced, not coded yet):** Airflow DAG `spotify_weekly` Option B — see [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md). Soft wire `run`→Silver/Gold **superseded** by DAG. `run` stays Bronze-only.
 
-Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Airflow/Prefect, and BI dashboards are **out of MVP / undecided** (see [Open questions](#open-questions)).
+Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Prefect, and BI dashboards remain **out of MVP / undecided**. Airflow weekly path is **locked in SPEC v2** (not implemented yet).
 
 ## Architecture
 
 ![Pipeline diagram](architecture/music-pipeline.png)
 
-Editable source: [`architecture/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) · Full design: [`docs/SPEC.md`](docs/SPEC.md)
+Editable source: [`architecture/version_1/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) · v2 diagram: [`architecture/version_2/`](architecture/version_2/) · Specs: [`docs/spec/SPEC.md`](docs/spec/SPEC.md) (v1) · [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md) (orchestration)
 
 ```text
 Charts public/v0 ──► Bronze ──► extract IDs ──┬──► Spotify Web API ──► dim_track / dim_artist
@@ -284,18 +285,25 @@ These are **undecided** — do not treat as product defaults:
 
 | Path | Contents |
 |------|----------|
-| [`docs/SPEC.md`](docs/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
-| [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |
+| [`docs/spec/SPEC.md`](docs/spec/SPEC.md) | v1 engineering spec (rules, data model, APIs) |
+| [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md) | v2 orchestration — Airflow Option B (`spotify_weekly`) |
+| [`docs/spec/DECISION_ORCHESTRATION_V2.md`](docs/spec/DECISION_ORCHESTRATION_V2.md) | Accepted decision record (Assumption #5 + Phase 0 locks) |
+| [`docs/spec/CHECKLIST_SPEC_V2.md`](docs/spec/CHECKLIST_SPEC_V2.md) | Self-check khi tự implement Airflow v2 (Phase 1–7) |
+| [`docs/spec/CHECKLIST_SPEC_GAPS.md`](docs/spec/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |
 | [`docs/sql/init/`](docs/sql/init/) | DDL bootstrap (`music_schema.sql`) |
 | [`docs/sql/silver/`](docs/sql/silver/) | Silver runtime SQL templates |
 | [`docs/sql/gold/`](docs/sql/gold/) | Gold runtime SQL + check scripts |
-| [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
-| [`architecture/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) | Editable pipeline diagram |
-| [`architecture/music-pipeline.png`](architecture/version_1/music-pipeline.png) | Diagram export |
+| [`docs/spec/SPOTIFY_AUTH_TEST.md`](docs/spec/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth |
+| [`architecture/version_1/`](architecture/version_1/) | v1 pipeline diagram |
+| [`architecture/version_2/`](architecture/version_2/) | v2 architecture diagram |
+| [`docs/ops/AIRFLOW.md`](docs/ops/AIRFLOW.md) | Airflow Docker runbook (`spotify_weekly` skeleton) |
+| [`dags/spotify_weekly.py`](dags/spotify_weekly.py) | Airflow DAG (Phase 2 skeleton; schedule=None) |
+| [`docker/airflow/`](docker/airflow/) | Airflow Compose stack (not in app `pyproject` deps) |
 
 ## Ask before changing
 
 - Enabling Charts `auth/v0` or HTML scraping fallbacks
-- Adding cloud warehouse / Airflow / public dashboard
+- Adding cloud warehouse / Prefect / public dashboard
+- Changing SPEC v2 Airflow locks (Phase 0 Q1–Q11) without a new decision
 - Publishing dataset dumps
 - Leaving the locked stack (Charts + Web API + ReccoBeats)
