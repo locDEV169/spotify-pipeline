@@ -1,0 +1,33 @@
+# Airflow LocalExecutor-lite for SPEC v2 Phase 2 (Q11=A).
+# App package stays outside default pyproject deps — run Airflow only via this compose.
+#
+# Usage (from repo root):
+#   docker compose -f docker/airflow/docker-compose.yml up -d
+# UI: http://localhost:8080  (standalone prints admin password on first boot)
+
+services:
+  airflow:
+    image: apache/airflow:2.9.3-python3.12
+    container_name: spotify-pipeline-airflow
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      # Optional: mirror Spotify/DB secrets into the container for later phases
+      # (compose loads file if present; missing file is OK for Phase 2 skeleton).
+    env_file:
+      - path: ../../.env
+        required: false
+    volumes:
+      - ../../dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+    command: standalone
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
