@@ -1,14 +1,10 @@
-"""Read-only HTTP API for the weekly Global dashboard."""
-
-from datetime import date
-
-from flask import Flask, jsonify, request
+"""Read weekly chart data from Silver and assemble the dashboard response."""
 
 from spotify_pipeline.db.postgres import connect_postgres
 
 
 class ChartNotFound(Exception):
-    pass
+    """The requested week is not available in Silver."""
 
 
 def read_chart(week: str | None) -> dict:
@@ -66,31 +62,3 @@ def read_chart(week: str | None) -> dict:
         }
     finally:
         conn.close()
-
-
-def create_app() -> Flask:
-    app = Flask(__name__)
-
-    @app.get("/api/health")
-    def health():
-        return jsonify(status="ok", service="spotify-pipeline")
-
-    @app.get("/api/charts")
-    def charts():
-        week = request.args.get("week")
-        if week is not None:
-            try:
-                if date.fromisoformat(week).isoformat() != week:
-                    raise ValueError
-            except ValueError:
-                return jsonify(error="week must be a valid YYYY-MM-DD date"), 400
-        try:
-            return jsonify(read_chart(week))
-        except ChartNotFound:
-            return jsonify(error="No chart available for this week"), 404
-        except Exception as exc:
-            # Database exception messages can contain connection details.
-            app.logger.error("Chart read failed (%s)", type(exc).__name__)
-            return jsonify(error="Chart data is unavailable. Check the backend database connection."), 503
-
-    return app

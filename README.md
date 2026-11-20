@@ -302,6 +302,17 @@ These are **undecided** — do not treat as product defaults:
 
 ## Dashboard HTTP API
 
+```text
+src/spotify_pipeline/api/
+├── __init__.py   # create_app: create Flask and register the API blueprint
+├── routes.py     # HTTP endpoints, date validation and error responses
+└── charts.py     # Read-only SQL and chart/artist response assembly
+```
+
+Requests flow through `routes.py` → `charts.read_chart()` → the existing
+`db/postgres.py` connection helper. The API reads Silver without changing the
+Bronze/Silver/Gold pipeline. Tests remain in `tests/test_api.py`.
+
 Install dependencies in the activated virtual environment:
 
 ```powershell
