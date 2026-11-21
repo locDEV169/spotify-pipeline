@@ -2,7 +2,8 @@ from datetime import date
 
 import pytest
 
-from spotify_pipeline.api import charts, create_app
+from spotify_pipeline.api import create_app
+from spotify_pipeline.pipeline.silver import dashboard
 
 
 class Connection:
@@ -37,7 +38,7 @@ def test_health_without_database(client):
 
 @pytest.mark.parametrize('week', ['nope', '2026-02-30', '20261112', "2026-11-12' OR 1=1"])
 def test_invalid_week(client, week, monkeypatch):
-    monkeypatch.setattr(charts, 'connect_postgres', lambda: pytest.fail('must validate before DB'))
+    monkeypatch.setattr(dashboard, 'connect_postgres', lambda: pytest.fail('must validate before DB'))
     assert client.get('/api/charts', query_string={'week': week}).status_code == 400
 
 
@@ -47,7 +48,7 @@ def test_chart_preserves_missing_features_and_collaborating_artists(client, monk
         ('one', 'One', 1, None, False, .9, .8, .7, 100, members),
         ('two', 'Two', 2, 3, True, .0, .8, None, 100, members[:1]),
     ])
-    monkeypatch.setattr(charts, 'connect_postgres', lambda: conn)
+    monkeypatch.setattr(dashboard, 'connect_postgres', lambda: conn)
     response = client.get('/api/charts')
     assert response.status_code == 200
     data = response.json
@@ -68,14 +69,14 @@ def test_chart_preserves_missing_features_and_collaborating_artists(client, monk
 
 def test_empty_database(client, monkeypatch):
     conn = Connection(dates=())
-    monkeypatch.setattr(charts, 'connect_postgres', lambda: conn)
+    monkeypatch.setattr(dashboard, 'connect_postgres', lambda: conn)
     assert client.get('/api/charts').json == {'week': None, 'weeks': [], 'tracks': [], 'artists': []}
     assert conn.closed
 
 
 def test_unavailable_week(client, monkeypatch):
     conn = Connection()
-    monkeypatch.setattr(charts, 'connect_postgres', lambda: conn)
+    monkeypatch.setattr(dashboard, 'connect_postgres', lambda: conn)
     assert client.get('/api/charts?week=2026-11-05').status_code == 404
     assert conn.closed
 
@@ -83,7 +84,7 @@ def test_unavailable_week(client, monkeypatch):
 def test_database_error_does_not_leak_details(client, monkeypatch):
     def fail(_):
         raise RuntimeError('secret database password')
-    monkeypatch.setattr(charts, 'read_chart', fail)
+    monkeypatch.setattr(dashboard, 'read_chart', fail)
     response = client.get('/api/charts')
     assert response.status_code == 503
     assert b'secret' not in response.data
@@ -96,7 +97,7 @@ def test_query_failure_closes_connection(client, monkeypatch):
         raise RuntimeError("private connection details")
 
     monkeypatch.setattr(conn, "run", fail_query)
-    monkeypatch.setattr(charts, "connect_postgres", lambda: conn)
+    monkeypatch.setattr(dashboard, "connect_postgres", lambda: conn)
     response = client.get("/api/charts")
     assert response.status_code == 503
     assert b"private connection details" not in response.data
@@ -105,9 +106,30 @@ def test_query_failure_closes_connection(client, monkeypatch):
 
 def test_selected_week_is_bound_to_query(client, monkeypatch):
     conn = Connection(dates=(date(2026, 11, 12), date(2026, 11, 5)))
-    monkeypatch.setattr(charts, "connect_postgres", lambda: conn)
+    monkeypatch.setattr(dashboard, "connect_postgres", lambda: conn)
     response = client.get("/api/charts?week=2026-11-05")
     assert response.status_code == 200
     assert response.json["week"] == "2026-11-05"
     assert conn.calls[-1][1] == {"week": "2026-11-05"}
     assert conn.closed
+
+
+
+def test_dashboard_sql_loads_outside_repo_working_directory(client, monkeypatch, tmp_path):
+    conn = Connection()
+    monkeypatch.setattr(dashboard, "connect_postgres", lambda: conn)
+    monkeypatch.chdir(tmp_path)
+    response = client.get("/api/charts")
+    assert response.status_code == 200
+    assert response.json["week"] == "2026-11-12"
+    assert conn.calls[-1][1] == {"week": "2026-11-12"}
+    assert conn.closed
+
+
+def test_missing_sql_returns_safe_error_without_opening_database(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(dashboard, "_SQL_DIR", tmp_path)
+    monkeypatch.setattr(dashboard, "connect_postgres", lambda: pytest.fail("SQL must load before connecting"))
+    response = client.get("/api/charts")
+    assert response.status_code == 503
+    assert str(tmp_path).encode() not in response.data
+    assert client.get("/api/health").status_code == 200

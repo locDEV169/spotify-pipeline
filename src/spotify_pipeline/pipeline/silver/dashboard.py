@@ -1,6 +1,10 @@
 """Read weekly chart data from Silver and assemble the dashboard response."""
 
+from pathlib import Path
+
 from spotify_pipeline.db.postgres import connect_postgres
+
+_SQL_DIR = Path(__file__).resolve().parents[4] / "docs" / "sql" / "silver"
 
 
 class ChartNotFound(Exception):
@@ -8,35 +12,17 @@ class ChartNotFound(Exception):
 
 
 def read_chart(week: str | None) -> dict:
+    weeks_sql = (_SQL_DIR / "dashboard_available_weeks.sql").read_text(encoding="utf-8")
+    chart_sql = (_SQL_DIR / "dashboard_weekly_global.sql").read_text(encoding="utf-8")
     conn = connect_postgres()
     try:
         conn.run("START TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
-        dates = conn.run("""
-            SELECT DISTINCT chart_date FROM music.fact_chart
-            WHERE chart_type = 'weekly_top_songs' AND country = 'global'
-            ORDER BY chart_date DESC
-        """)
+        dates = conn.run(weeks_sql)
         weeks = [str(row[0]) for row in dates]
         selected = week or (weeks[0] if weeks else None)
         if selected is not None and selected not in weeks:
             raise ChartNotFound("No chart available for this week")
-        rows = [] if selected is None else conn.run("""
-            SELECT f.track_id, t.track_name, f.rank, f.prev_rank,
-                   t.features_found, t.energy, t.danceability, t.valence, t.tempo,
-                   COALESCE(artists.members, '[]'::jsonb)
-            FROM music.fact_chart f
-            LEFT JOIN music.dim_track t ON t.track_id = f.track_id
-            LEFT JOIN LATERAL (
-                SELECT jsonb_agg(jsonb_build_object('id', a.artist_id, 'name', a.artist_name)
-                                ORDER BY b.artist_position, a.artist_id) AS members
-                FROM music.bridge_track_artist b
-                JOIN music.dim_artist a ON a.artist_id = b.artist_id
-                WHERE b.track_id = f.track_id
-            ) artists ON true
-            WHERE f.chart_date = :week AND f.chart_type = 'weekly_top_songs'
-                  AND f.country = 'global'
-            ORDER BY f.rank, f.track_id
-        """, week=selected)
+        rows = [] if selected is None else conn.run(chart_sql, week=selected)
         tracks = []
         artists = {}
         for track_id, name, rank, previous, found, energy, dance, valence, tempo, members in rows:

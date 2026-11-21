@@ -303,14 +303,22 @@ These are **undecided** — do not treat as product defaults:
 ## Dashboard HTTP API
 
 ```text
-src/spotify_pipeline/api/
-├── __init__.py   # create_app: create Flask and register the API blueprint
-├── routes.py     # HTTP endpoints, date validation and error responses
-└── charts.py     # Read-only SQL and chart/artist response assembly
+src/spotify_pipeline/
+├── api/
+│   ├── __init__.py           # create_app and blueprint registration
+│   └── routes.py             # HTTP only: validate week, map 400/404/503
+└── pipeline/silver/
+    └── dashboard.py          # ChartNotFound, read_chart and response assembly
+
+docs/sql/silver/
+├── dashboard_available_weeks.sql
+└── dashboard_weekly_global.sql
 ```
 
-Requests flow through `routes.py` → `charts.read_chart()` → the existing
-`db/postgres.py` connection helper. The API reads Silver without changing the
+Requests flow through `api/routes.py` → `pipeline/silver/dashboard.read_chart()`
+→ SQL files in `docs/sql/silver/` → the existing `db/postgres.py` connection helper.
+SQL file paths are resolved from the module location, independent of the working
+directory. Keep these SQL files with the source checkout when running the API. The API reads Silver without changing the
 Bronze/Silver/Gold pipeline. Tests remain in `tests/test_api.py`.
 
 Install dependencies in the activated virtual environment:
