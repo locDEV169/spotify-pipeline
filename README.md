@@ -299,3 +299,44 @@ These are **undecided** — do not treat as product defaults:
 - Adding cloud warehouse / Airflow / public dashboard
 - Publishing dataset dumps
 - Leaving the locked stack (Charts + Web API + ReccoBeats)
+
+## Dashboard HTTP API
+
+```text
+src/spotify_pipeline/api/
+├── __init__.py   # create_app: create Flask and register the API blueprint
+├── routes.py     # HTTP endpoints, date validation and error responses
+└── charts.py     # Read-only SQL and chart/artist response assembly
+```
+
+Requests flow through `routes.py` → `charts.read_chart()` → the existing
+`db/postgres.py` connection helper. The API reads Silver without changing the
+Bronze/Silver/Gold pipeline. Tests remain in `tests/test_api.py`.
+
+Install dependencies in the activated virtual environment:
+
+```powershell
+uv pip install --python .\.venv\Scripts\python.exe -e ".[dev]"
+python -m flask --app spotify_pipeline.api run --host 127.0.0.1 --port 5001
+```
+
+Keep this terminal running while using the dashboard. `SUPABASE_DB_URL` is read
+from this repo's `.env`; database credentials stay in the Python process.
+
+- `GET /api/health`: process health (does not probe the database).
+- `GET /api/charts`: latest weekly Global songs available in Silver.
+- `GET /api/charts?week=2026-11-12`: a specific available week.
+
+The chart response contains `week`, descending `weeks`, `tracks`, and `artists`.
+Tracks retain missing metadata/features with null metrics and `featuresFound=false`.
+Artists are grouped by artist ID, including all collaborators. Null previous ranks
+are returned unchanged; they are not assumed to be new entries. No pipeline stages
+or database writes run during HTTP requests. Empty storage returns empty lists;
+invalid dates return 400, missing weeks 404, database failures 503.
+
+The dashboard's TanStack Start server calls this API, so browser CORS configuration
+is not required. This local development API binds to loopback and has no public
+authentication layer. Use a production WSGI server and access controls before
+exposing it externally.
+
+Run API tests: `python -m pytest tests/test_api.py -q`.
