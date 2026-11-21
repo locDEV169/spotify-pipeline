@@ -4,7 +4,7 @@ from datetime import date
 
 from flask import Blueprint, current_app, jsonify, request
 
-from . import charts
+from spotify_pipeline.pipeline.silver import dashboard
 
 blueprint = Blueprint("api", __name__, url_prefix="/api")
 
@@ -24,8 +24,8 @@ def chart_data():
         except ValueError:
             return jsonify(error="week must be a valid YYYY-MM-DD date"), 400
     try:
-        return jsonify(charts.read_chart(week))
-    except charts.ChartNotFound:
+        return jsonify(dashboard.read_chart(week))
+    except dashboard.ChartNotFound:
         return jsonify(error="No chart available for this week"), 404
     except Exception as exc:
         # Database exception messages can contain connection details.
