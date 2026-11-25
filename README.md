@@ -284,12 +284,13 @@ These are **undecided** — do not treat as product defaults:
 
 | Path | Contents |
 |------|----------|
-| [`docs/SPEC.md`](docs/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
-| [`docs/CHECKLIST_SPEC_GAPS.md`](docs/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |
+| [`docs/spec/SPEC.md`](docs/spec/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
+| [`docs/spec/DATA_MODEL_LAYERS.md`](docs/spec/explain/DATA_MODEL_LAYERS.md) | Explain `raw_charts` vs `fact_chart` / dims (why no `dim_chart`) |
+| [`docs/spec/CHECKLIST_SPEC_GAPS.md`](docs/spec/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |
 | [`docs/sql/init/`](docs/sql/init/) | DDL bootstrap (`music_schema.sql`) |
 | [`docs/sql/silver/`](docs/sql/silver/) | Silver runtime SQL templates |
 | [`docs/sql/gold/`](docs/sql/gold/) | Gold runtime SQL + check scripts |
-| [`docs/SPOTIFY_AUTH_TEST.md`](docs/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
+| [`docs/spec/SPOTIFY_AUTH_TEST.md`](docs/spec/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
 | [`architecture/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) | Editable pipeline diagram |
 | [`architecture/music-pipeline.png`](architecture/version_1/music-pipeline.png) | Diagram export |
 
