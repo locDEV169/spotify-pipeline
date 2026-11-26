@@ -18,6 +18,9 @@ htmlcov/
 .env
 .env.local
 
+# Airflow local runtime (docker/airflow)
+docker/airflow/logs/
+
 # Pipeline data (keep directory placeholders via .gitkeep)
 data/bronze/**
 !data/bronze/.gitkeep
