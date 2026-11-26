@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -22,6 +23,19 @@ KNOWN_CHART_TYPES = frozenset(
 
 class WatermarkError(ValueError):
     """Raised when watermark fields are missing or invalid."""
+
+
+_THURSDAY = 3  # date.weekday()
+
+
+def chart_date_before(run_end: date) -> str:
+    """SPEC v2 Q8a: most recent Thursday strictly before ``run_end`` (YYYY-MM-DD).
+
+    ``run_end`` = the scheduled run's ``data_interval_end`` as a local date
+    (Mon 09:00 → the Thursday 4 days earlier).
+    """
+    days_back = (run_end.weekday() - _THURSDAY) % 7 or 7
+    return (run_end - timedelta(days=days_back)).isoformat()
 
 
 @dataclass(frozen=True, slots=True)

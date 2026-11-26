@@ -41,9 +41,9 @@ UI → DAGs → `spotify_weekly` (may start **paused** — unpause to trigger).
 
 ## Manual trigger (Phase 3–4)
 
-Chain: `bronze >> build_silver >> build_gold`, all for the same watermark. `bronze` calls `run_bronze`; `build_silver` / `build_gold` call the library builders (DB only, no HTTP). The DAG run is green only when all three succeed. If a task fails, downstream does not run — fix the cause, then **Clear** the failed task (with downstream, not upstream) so Bronze is not re-run. `schedule=None` (Q7 stage 1 — manual only).
+Chain: `bronze >> build_silver >> build_gold`, all for the same watermark. `bronze` calls `run_bronze`; `build_silver` / `build_gold` call the library builders (DB only, no HTTP). The DAG run is green only when all three succeed. If a task fails, downstream does not run — fix the cause, then **Clear** the failed task (with downstream, not upstream) so Bronze is not re-run. The weekly schedule is on (see **Schedule** below); manual triggers still work.
 
-Trigger with conf (Q8a still OPEN — pass `chart_date` explicitly):
+Trigger with conf (manual trigger: pass `chart_date` explicitly; scheduled runs derive it from Q8a = Thứ Năm gần nhất trước `data_interval_end`, see SPEC_V2 §8):
 
 ```json
 {
@@ -62,6 +62,14 @@ Rules:
 - `build_silver` / `build_gold` have `retries=1` with a 1-minute delay (idempotent upserts / read-only views).
 - `build_silver` reads the **latest** Bronze for the watermark. `build_gold` only reads Silver views; with no Silver rows it would report zeros, so check `chart_rows > 0` in its log.
 - The DAG calls `run_bronze(write_fs=False)`. Bronze is written to Postgres only. The container does not write `data/bronze` files.
+
+## Schedule (Phase 5)
+
+- **Timetable:** Mon 09:00 `Asia/Bangkok` (`0 9 * * 1`), `catchup=False`, `max_active_runs=1`. Unpause the DAG once (`airflow dags unpause spotify_weekly`); a recreated container starts paused again and loses run history.
+- **Watermark:** a scheduled run uses `chart_date` = the most recent Thursday before `data_interval_end` (Q8a; Mon 30/11 → Thu 26/11). An explicit `chart_date` in conf always wins. A manual run with an empty `chart_date` fails with `chart_date is required`.
+- **The Docker host must be running** at Mon 09:00; a missed run is not re-created (`catchup=False`).
+- **No history back-fill:** Charts `public/v0` only serves the live week, so the 8 weeks accumulate one scheduled run at a time. If the Charts live date is not the derived Thursday when the run fires, `bronze` fails with `live chart watermark mismatch` and writes nothing — re-run manually with the live date.
+- **Week catch-up ≠ C12:** week catch-up = more weekly watermarks through this DAG (full chain). C12 feature backfill (re-query ReccoBeats where `features_found=false`) is **not** in this DAG.
 
 ## Stop
 

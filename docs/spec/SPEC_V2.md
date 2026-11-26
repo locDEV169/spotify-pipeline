@@ -200,7 +200,7 @@ src/spotify_pipeline/        # unchanged package ownership of builders
 
 ---
 
-## 8. Watermark mapping (Q8 + OPEN Q8a)
+## 8. Watermark mapping (Q8 + Q8a LOCKED 26/11)
 
 **Locked (Q8=A):** For each DAG run, derive `chart_date` from Airflow **logical date / data interval** using a **fixed week-boundary rule**.
 
@@ -209,12 +209,14 @@ src/spotify_pipeline/        # unchanged package ownership of builders
 - `chart_type = weekly_top_songs`
 - `country = global`
 
-**OPEN — Q8a (do not invent):**
+**Q8a — LOCKED 26/11 (Chubby):** `chart_date` = **Thứ Năm gần nhất trước** `data_interval_end` (run Mon 09:00 → Thứ Năm cách 4 ngày, ví dụ Mon 30/11 → Thu 26/11). Lý do: Charts public/v0 vẫn live tuần trước vào sáng Thứ Năm, nên chart của tuần đang chạy chưa chắc đã publish. Cách xác minh: P5-02 Verify.
+
+Mô tả trước khi lock (giữ làm bối cảnh):
 
 > Exact formula mapping Airflow data interval → `chart_date`  
 > (e.g. which weekday represents the Spotify weekly chart date: Thursday, Monday/ISO week start, `data_interval_end.date()`, etc.)
 
-Until Q8a is locked:
+Before the Q8a lock (historical, superseded):
 
 - Manual DAG triggers **may** pass explicit `chart_date` via DAG params / conf (**Recommendation** for Phase 3 bootstrap).
 - Scheduled catch-up week enumeration **must not** be hard-coded to a guessed weekday.
@@ -355,7 +357,7 @@ pytest -q
 
 | ID | Question | Status |
 |----|----------|--------|
-| **Q8a** | Exact week-boundary day/formula: Airflow data interval → `chart_date` | **OPEN** — do not invent |
+| **Q8a** | Exact week-boundary day/formula: Airflow data interval → `chart_date` | **LOCKED 26/11** — Thứ Năm gần nhất trước `data_interval_end` (§8) |
 | **Q7-stage2** | Confirm or override **Mon 09:00 Asia/Bangkok** when enabling schedule | Open until schedule enable |
 | Secret-store product | Still TBD from v1 | Open |
 | Airflow exact version pin | Image/compose pin | **Recommendation** at implement time — not product-locked |

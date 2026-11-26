@@ -57,7 +57,7 @@ v1 ran the medallion pipeline via CLI (`run` / stage commands). Soft items SQ-11
 ### Trade-offs / follow-ups
 
 - Ops bar rises (Docker/separate Airflow env).
-- **Q8a OPEN:** exact week-boundary weekday for `chart_date` — until locked, use explicit DAG params.
+- **Q8a LOCKED 26/11:** `chart_date` = Thứ Năm gần nhất trước `data_interval_end` (see SPEC_V2 §8).
 - Catch-up (~8 × full chain) increases Charts/API/DB load — enable only after Phase 4 green (Q7).
 - v1 docs that said “Airflow out of MVP” must defer to this record + `SPEC_V2.md` for weekly path.
 
@@ -84,7 +84,7 @@ See [`SPEC.md`](SPEC.md) Assumptions §5. Summary:
 
 | ID | Item | Status |
 |----|------|--------|
-| **Q8a** | Week-boundary day/formula → `chart_date` | OPEN — do not invent |
+| **Q8a** | Week-boundary day/formula → `chart_date` | **LOCKED 26/11** — Thứ Năm gần nhất trước `data_interval_end` |
 | **Q7-stage2** | Confirm Mon 09:00 Asia/Bangkok when enabling schedule | Open until Phase 5 |
 | Airflow image pin | Exact Airflow 2.x in compose/image | Implementer recommendation |
 

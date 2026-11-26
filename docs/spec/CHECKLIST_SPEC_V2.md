@@ -3,7 +3,7 @@
 **Spec:** [`SPEC_V2.md`](SPEC_V2.md) · **v1 (builders):** [`SPEC.md`](SPEC.md) · **Architecture:** [`architecture/version_2/`](../../architecture/version_2/)  
 **Audience:** Chubby tự implement + tự tick  
 **Status:** Phase 0 locks frozen — do not reopen Q1–Q11  
-**OPEN:** **Q8a** (week-boundary day) — **không bịa weekday**; dùng **DAG params** `chart_date` cho đến khi lock  
+**LOCKED 26/11:** **Q8a** = Thứ Năm gần nhất trước `data_interval_end` (SPEC §8). Trước khi code P5-02 cần verify công thức đó trên Airflow  
 
 **Cách dùng:** Làm tuần tự Phase 1 → 7. Tick `- [x]` chỉ khi **How to verify** đã pass. Đừng bật Phase 5 trước khi Phase 4 DoD xanh (Q7).
 
@@ -151,8 +151,9 @@ Tick khi implementation **khớp** lock (không “gần đúng”).
 - [x] **P4-05** All-green: DAG run success chỉ khi cả 3 tasks success (Q1=A)  
   - **Verify:** UI DAG Run = **success** iff bronze+silver+gold success  
   - **Evidence (26/11):** run `smoke_p4_20261119` = success, 3 task success. Chiều ngược (fail → DAG không success) chưa chứng minh bằng DAG run, xem P4-06 / AC-V2-4  
-- [ ] **P4-06** Recovery demo (Q2=A): fail Gold/Silver → Clear **failed task only** → success; Bronze **không** chạy lại  
-  - **Verify:** Task try history — Bronze try count không tăng trong recovery đó  
+- [x] **P4-06** Recovery demo (Q2=A): fail Gold/Silver → Clear **failed task only** → success; Bronze **không** chạy lại  
+  - **Verify:** Task try history — Bronze try count không tăng trong recovery đó
+  - **Evidence (26/11, run `smoke_p4_20261119`):** chèn `raise` tạm vào `_build_silver_task` → `build_silver` failed, `build_gold` upstream_failed, run **failed**. Khôi phục file (sha256 khớp backup), clear `build_silver` rồi `build_gold` → cả hai success, run **success**. `bronze` chỉ có `attempt=1.log`; `raw_charts` = 1 dòng (không đổi)  
 - [x] **P4-07** `run.py` vẫn Bronze-only  
   - **Verify:** ANTI-RUN lại  
   - **Evidence (26/11):** `rg "build_silver|build_gold" src/spotify_pipeline/pipeline/run.py` → không có  
@@ -176,10 +177,11 @@ country:     global
 
 ### Phase 4 DoD / AC
 
-- [x] **DoD-P4 / AC-V2-2:** Manual full chain OK với builders hiện có  
-  - **Lưu ý:** DoD-P4 theo nghĩa "một watermark all-green" đã xanh; P4-06 (recovery) và AC-V2-3/4 vẫn mở trước khi sang Phase 5  
-- [ ] **AC-V2-3:** Recovery from failed curated task — P4-06  
-- [ ] **AC-V2-4:** Fail bất kỳ task → DAG không success; no Gold soft_fail  
+- [x] **AC-V2-2:** Manual full chain OK với builders hiện có (smoke `smoke_p4_20261119`)  
+- [x] **DoD-P4:** Gate để sang Phase 5 — P4-06 + AC-V2-3 + AC-V2-4 đã xanh (26/11)  
+- [x] **AC-V2-3:** Recovery from failed curated task — P4-06  
+- [x] **AC-V2-4:** Fail bất kỳ task → DAG không success; no Gold soft_fail  
+  - **Evidence (26/11):** `build_silver` fail → DAG run `failed`; `rg "soft_fail|trigger_rule" dags/` không có  
 - [x] **AC-V2-5:** CLI `run` vẫn Bronze-only  
   - **Verify thêm:** `python -m spotify_pipeline run --help`  
   - **Evidence (26/11):** help ghi "Silver/Gold/report still deferred"; `run.py` không gọi silver/gold  
@@ -190,30 +192,44 @@ country:     global
 
 ## Phase 5 — Schedule rồi Catch-up (Q7 → Q3/Q9/Q10)
 
+### Gate (chặn Phase 5)
+
+- [x] **P5-G1** Phase 4 gate đã xanh (P4-06, AC-V2-3/4) — evidence ở P4-06  
+- [x] **P5-G2** Q8a: **locked** = Thứ Năm gần nhất trước `data_interval_end` (Chubby, 26/11), đã ghi SPEC §8. *Còn lại:* verify trên run thật ở P5-02  
+- [x] **P5-G3** Nguồn lịch sử: **tích lũy dần** — schedule capture từng tuần live; không thêm nguồn, không ingest tuần cũ (public/v0 từ chối)  
+- [x] **P5-G4** Timetable Mon 09:00 `Asia/Bangkok` (Q7 stage 2) — Chubby xác nhận 26/11  
+
 ### 5A — Enable schedule (chỉ sau Phase 4)
 
-- [ ] **P5-01** Confirm/override timetable: default proposal **Mon 09:00 `Asia/Bangkok`** (Q7 stage 2)  
+- [x] **P5-01** Confirm/override timetable: default proposal **Mon 09:00 `Asia/Bangkok`** (Q7 stage 2)  
   - **Verify:** DAG `schedule` + timezone; ghi đè nếu chọn khác  
-- [ ] **P5-02** Scheduled `chart_date` mapping: **chỉ** sau Q8a locked — hoặc còn phụ thuộc params/OPEN  
-  - **Verify:** nếu Q8a OPEN → không ship weekday “im lặng”; AC-V2-8  
+  - **Evidence (26/11):** DagBag → `schedule=0 9 * * 1`, tz `Asia/Bangkok`, `catchup=False`, `max_active_runs=1`; `airflow dags next-execution` → logical 2026-11-23/30, 12-07 (02:00 UTC = 09:00 Bangkok); DAG unpaused, không tạo run ngay  
+- [ ] **P5-02** Scheduled `chart_date` mapping theo **Q8a = Thứ Năm gần nhất trước `data_interval_end`**; manual không có chart_date phải fail rõ  
+  - **Verify:** công thức đúng trong code + test; **run theo lịch thật** (Mon 30/11) log `bronze watermark=('2026-11-26', ...)` và không `live chart watermark mismatch`  
+  - **Evidence một phần (26/11):** `chart_date_before` + test (112 pass); DagBag + context giả: scheduled → `2026-11-26`, explicit param thắng, manual rỗng → `chart_date is required`. **Chưa tick:** còn chờ run thật  
 - [ ] **P5-03** Ít nhất một run sau khi enable schedule được ghi nhận  
   - **Verify:** Airflow UI next run / history  
 
 ### 5B — Week catch-up (~8 weeks, full chain)
 
-- [ ] **P5-04** Scope = `global` + `weekly_top_songs` + ~8 weeks (Q10=A)  
+- [ ] **P5-04** Scope = `global` + `weekly_top_songs` + ~8 tuần **tích lũy dần** từ schedule (Q10=A; không catch-up lịch sử)  
+  - **Lưu ý:** 8 tuần là thời gian thực, không xong ngay sau khi bật schedule  
   - **Verify:** docs/runbook hoặc backfill params  
 - [ ] **P5-05** Mỗi tuần catch-up = **full chain** (Q3=A)  
   - **Verify:** ≥2 tuần mẫu — mỗi tuần đủ 3 tasks  
 - [ ] **P5-06** Bronze append (Q9=B): re-process → `run_id` mới; curated dùng latest  
   - **Verify:** DB — 2 raw rows khác `run_id` cùng watermark; silver vẫn OK  
-- [ ] **P5-07** Naming: **week catch-up** ≠ C12 / `backfill-features`  
+- [x] **P5-07** Naming: **week catch-up** ≠ C12 / `backfill-features`  
   - **Verify:** docs tách hai khái niệm  
+
+- [ ] **P5-08** Rate limit: `max_active_runs=1` (chạy tuần tự); quyết định G8 (429 Spotify) trước khi tích lũy nhiều run  
+  - **Verify:** `rg "max_active_runs" dags/`; log không có 429 lặp lại  
+  - **Evidence một phần (26/11):** `max_active_runs=1` đã set. **Chưa tick:** G8 (Spotify/Charts chưa có 429 retry) chưa quyết; mỗi run ~108 call Spotify, 1 run/tuần nên rủi ro thấp  
 
 ### Phase 5 DoD / AC
 
-- [ ] **DoD-P5 / AC-V2-6:** ~8 tuần global songs full chain; không phải C12  
-- [ ] Schedule chỉ bật sau Phase 4 (Q7)  
+- [ ] **DoD-P5 / AC-V2-6:** ~8 tuần global songs full chain (tích lũy dần từ schedule); không phải C12  
+- [x] Schedule chỉ bật sau Phase 4 (Q7) — bật 26/11, sau khi DoD-P4 xanh cùng ngày  
 
 ---
 
@@ -275,8 +291,8 @@ country:     global
 | 1 Docs | [x] | [x] | SPEC_V2 + pointers + this checklist (2026-11-19) |
 | 2 Skeleton | [x] | [x] | `dags/` + `docker/airflow/` + `docs/ops/AIRFLOW.md` (2026-11-19) |
 | 3 Bronze | [x] | [x] | Smoke 26/11: `bronze` success cho 2026-11-19 (run `smoke_p4_20261119`) |
-| 4 Silver/Gold + smoke | [x] | [ ] | **GATE for P5.** Smoke all-green 26/11 (P4-01..05, 07, AC-V2-2, AC-V2-5). Còn P4-06 recovery demo + AC-V2-3/4 |
-| 5 Schedule + catch-up | [ ] | [ ] | Q7 then Q3/Q10 |
+| 4 Silver/Gold + smoke | [x] | [x] | Smoke all-green + recovery P4-06 xanh (26/11). Gate P5 mở |
+| 5 Schedule + catch-up | [x] | [ ] | Schedule bật 26/11 (P5-01, P5-07). Chờ run thật Mon 30/11 09:00 cho P5-02/03; P5-04..06 + DoD tích lũy ~8 tuần; G8 mở |
 | 6 CI | [ ] | [ ] | |
 | 7 Runbook | [ ] | [ ] | |
 
