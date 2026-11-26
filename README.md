@@ -289,6 +289,8 @@ These are **undecided** — do not treat as product defaults:
 | [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md) | v2 orchestration — Airflow Option B (`spotify_weekly`) |
 | [`docs/spec/DECISION_ORCHESTRATION_V2.md`](docs/spec/DECISION_ORCHESTRATION_V2.md) | Accepted decision record (Assumption #5 + Phase 0 locks) |
 | [`docs/spec/CHECKLIST_SPEC_V2.md`](docs/spec/CHECKLIST_SPEC_V2.md) | Self-check khi tự implement Airflow v2 (Phase 1–7) |
+| [`docs/spec/SPEC.md`](docs/spec/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
+| [`docs/spec/DATA_MODEL_LAYERS.md`](docs/spec/explain/DATA_MODEL_LAYERS.md) | Explain `raw_charts` vs `fact_chart` / dims (why no `dim_chart`) |
 | [`docs/spec/CHECKLIST_SPEC_GAPS.md`](docs/spec/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |
 | [`docs/sql/init/`](docs/sql/init/) | DDL bootstrap (`music_schema.sql`) |
 | [`docs/sql/silver/`](docs/sql/silver/) | Silver runtime SQL templates |
@@ -299,6 +301,9 @@ These are **undecided** — do not treat as product defaults:
 | [`docs/ops/AIRFLOW.md`](docs/ops/AIRFLOW.md) | Airflow Docker runbook (`spotify_weekly` skeleton) |
 | [`dags/spotify_weekly.py`](dags/spotify_weekly.py) | Airflow DAG (Phase 2 skeleton; schedule=None) |
 | [`docker/airflow/`](docker/airflow/) | Airflow Compose stack (not in app `pyproject` deps) |
+| [`docs/spec/SPOTIFY_AUTH_TEST.md`](docs/spec/SPOTIFY_AUTH_TEST.md) | Hướng dẫn test Spotify auth (Client Credentials + user login / refresh_token) |
+| [`architecture/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) | Editable pipeline diagram |
+| [`architecture/music-pipeline.png`](architecture/version_1/music-pipeline.png) | Diagram export |
 
 ## Ask before changing
 
@@ -307,3 +312,52 @@ These are **undecided** — do not treat as product defaults:
 - Changing SPEC v2 Airflow locks (Phase 0 Q1–Q11) without a new decision
 - Publishing dataset dumps
 - Leaving the locked stack (Charts + Web API + ReccoBeats)
+
+## Dashboard HTTP API
+
+```text
+src/spotify_pipeline/
+├── api/
+│   ├── __init__.py           # create_app and blueprint registration
+│   └── routes.py             # HTTP only: validate week, map 400/404/503
+└── pipeline/silver/
+    └── dashboard.py          # ChartNotFound, read_chart and response assembly
+
+docs/sql/silver/
+├── dashboard_available_weeks.sql
+└── dashboard_weekly_global.sql
+```
+
+Requests flow through `api/routes.py` → `pipeline/silver/dashboard.read_chart()`
+→ SQL files in `docs/sql/silver/` → the existing `db/postgres.py` connection helper.
+SQL file paths are resolved from the module location, independent of the working
+directory. Keep these SQL files with the source checkout when running the API. The API reads Silver without changing the
+Bronze/Silver/Gold pipeline. Tests remain in `tests/test_api.py`.
+
+Install dependencies in the activated virtual environment:
+
+```powershell
+uv pip install --python .\.venv\Scripts\python.exe -e ".[dev]"
+python -m flask --app spotify_pipeline.api run --host 127.0.0.1 --port 5001
+```
+
+Keep this terminal running while using the dashboard. `SUPABASE_DB_URL` is read
+from this repo's `.env`; database credentials stay in the Python process.
+
+- `GET /api/health`: process health (does not probe the database).
+- `GET /api/charts`: latest weekly Global songs available in Silver.
+- `GET /api/charts?week=2026-11-12`: a specific available week.
+
+The chart response contains `week`, descending `weeks`, `tracks`, and `artists`.
+Tracks retain missing metadata/features with null metrics and `featuresFound=false`.
+Artists are grouped by artist ID, including all collaborators. Null previous ranks
+are returned unchanged; they are not assumed to be new entries. No pipeline stages
+or database writes run during HTTP requests. Empty storage returns empty lists;
+invalid dates return 400, missing weeks 404, database failures 503.
+
+The dashboard's TanStack Start server calls this API, so browser CORS configuration
+is not required. This local development API binds to loopback and has no public
+authentication layer. Use a production WSGI server and access controls before
+exposing it externally.
+
+Run API tests: `python -m pytest tests/test_api.py -q`.
