@@ -110,22 +110,24 @@ Tick khi implementation **khớp** lock (không “gần đúng”).
 - [x] **P3-01** Task `bronze` gọi **`run_bronze`** hoặc CLI `python -m spotify_pipeline run ...`  
   - **Verify:** DAG/operator — import `run_bronze` **hoặc** Bash/CLI `run`  
   - **Evidence (26/11):** `dags/spotify_weekly.py` — `PythonOperator` `bronze` gọi `run_bronze(watermark, write_fs=False)`; DagBag parse không lỗi, `bronze` là `PythonOperator`
-- [ ] **P3-02** Watermark: **DAG params/conf `chart_date`** (và type/country) khi Q8a OPEN  
+- [x] **P3-02** Watermark: **DAG params/conf `chart_date`** (và type/country) khi Q8a OPEN  
   - **Verify:** trigger manual với conf:  
     `{"chart_date":"YYYY-MM-DD","chart_type":"weekly_top_songs","country":"global"}`  
     Task log in watermark đúng — **không** dựa weekday bịa  
+  - **Evidence (26/11):** run `smoke_p4_20261119` conf `chart_date=2026-11-19`; log `bronze watermark=('2026-11-19', 'weekly_top_songs', 'global')`. Live date đọc từ Charts, không bịa weekday  
 - [x] **P3-03** Defaults MVP: `weekly_top_songs` + `global` (Q10)  
   - **Verify:** code default hoặc docs operator  
   - **Evidence (26/11):** DAG params defaults + `docs/ops/AIRFLOW.md` "Manual trigger (Phase 3)"  
-- [ ] **P3-04** Manual trigger: Bronze task **success** cho một `chart_date` biết trước  
+- [x] **P3-04** Manual trigger: Bronze task **success** cho một `chart_date` biết trước  
   - **Verify:** UI task `bronze` = success; và/hoặc SQL có `music.raw_*` mới  
+  - **Evidence (26/11):** `bronze` = success (~47s); `raw_charts` 0→1 dòng cho 2026-11-19; summary: 50 entries, Spotify inserted 108, ReccoBeats hits 33 / misses 17  
 - [x] **P3-05** Airflow retries trên Bronze **và** client 429 vẫn còn trong app  
   - **Verify:** `retries=` / `default_args` trong DAG; `rg -n "Retry-After|429" src/spotify_pipeline/clients/`  
   - **Evidence (26/11):** `bronze` `retries=1`, `retry_delay=5min`. 429 + `Retry-After` còn ở `clients/reccobeats.py`. **Gap G8:** Spotify/Charts client chưa có 429 retry, `clients/http.py` vẫn stub (không thuộc checklist Phase 3)  
 
 ### Phase 3 DoD / AC
 
-- [ ] **DoD-P3:** Một watermark Bronze xong qua DAG, reuse `run_bronze`, params path tôn trọng Q8a OPEN  
+- [x] **DoD-P3:** Một watermark Bronze xong qua DAG, reuse `run_bronze`, params path tôn trọng Q8a OPEN  
   - **Verify:** P3-01 + P3-02 + P3-04  
 
 ---
@@ -134,45 +136,53 @@ Tick khi implementation **khớp** lock (không “gần đúng”).
 
 ### Checks
 
-- [ ] **P4-01** Task graph: `bronze >> build_silver >> build_gold` (Q4=A)  
+- [x] **P4-01** Task graph: `bronze >> build_silver >> build_gold` (Q4=A)  
   - **Verify:** đọc DAG; UI Graph View 3 tasks nối tiếp  
-- [ ] **P4-02** Silver gọi **`build_silver`** / CLI `build-silver` — không HTTP  
+  - **Evidence (26/11):** `airflow tasks list spotify_weekly --tree` → bronze → build_silver → build_gold; DagBag import_errors rỗng  
+- [x] **P4-02** Silver gọi **`build_silver`** / CLI `build-silver` — không HTTP  
   - **Verify:** code call + (optional) log không gọi Charts/Spotify/ReccoBeats  
-- [ ] **P4-03** Gold gọi **`build_gold`** / CLI `build-gold`  
+  - **Evidence (26/11):** `_build_silver_task` → `build_silver(watermark)`; `tasks test` với DB URL rỗng → `SilverError` (task fail, không ghi). Smoke run `smoke_p4_20261119`: log `build_silver` / `build_gold` không có dòng `HTTP Request`  
+- [x] **P4-03** Gold gọi **`build_gold`** / CLI `build-gold`  
   - **Verify:** tương tự P4-02  
-- [ ] **P4-04** Gold **không** `soft_fail=True` (Q6=A)  
+  - **Evidence (26/11):** `tasks test build_gold` (chart_date 2026-11-12, chỉ đọc) → SUCCESS, `chart_rows=50`, `features_found_rows=32` (64%). Cần `docs/sql` trong image (Dockerfile đã sửa)  
+- [x] **P4-04** Gold **không** `soft_fail=True` (Q6=A)  
   - **Verify:** `rg -n "soft_fail" dags/` → không soft_fail Gold  
-- [ ] **P4-05** All-green: DAG run success chỉ khi cả 3 tasks success (Q1=A)  
+  - **Evidence (26/11):** `rg "soft_fail|trigger_rule" dags/` → không có  
+- [x] **P4-05** All-green: DAG run success chỉ khi cả 3 tasks success (Q1=A)  
   - **Verify:** UI DAG Run = **success** iff bronze+silver+gold success  
+  - **Evidence (26/11):** run `smoke_p4_20261119` = success, 3 task success. Chiều ngược (fail → DAG không success) chưa chứng minh bằng DAG run, xem P4-06 / AC-V2-4  
 - [ ] **P4-06** Recovery demo (Q2=A): fail Gold/Silver → Clear **failed task only** → success; Bronze **không** chạy lại  
   - **Verify:** Task try history — Bronze try count không tăng trong recovery đó  
-- [ ] **P4-07** `run.py` vẫn Bronze-only  
+- [x] **P4-07** `run.py` vẫn Bronze-only  
   - **Verify:** ANTI-RUN lại  
+  - **Evidence (26/11):** `rg "build_silver|build_gold" src/spotify_pipeline/pipeline/run.py` → không có  
 
 ### Smoke card — one watermark all-green
 
 ```text
 SMOKE — spotify_weekly (manual)
-chart_date:  ____________   (explicit param; Q8a OPEN)
+chart_date:  2026-11-19     (explicit param; Q8a OPEN)
 chart_type:  weekly_top_songs
 country:     global
 
-[ ] Trigger DAG run with conf/params above
-[ ] bronze       = success   (run_bronze)
-[ ] build_silver = success
-[ ] build_gold   = success
-[ ] DAG run      = success   (all green)
-[ ] Spot-check DB: raw_* latest + fact_chart / gold outputs for watermark
-[ ] Did NOT invent Q8a weekday for this smoke
+[x] Trigger DAG run with conf/params above   (run_id smoke_p4_20261119, 26/11)
+[x] bronze       = success   (run_bronze)
+[x] build_silver = success   (fact 50, dim_track 50, artists 58, bridges 65)
+[x] build_gold   = success   (chart_rows 50, features_found 33 = 66%)
+[x] DAG run      = success   (all green)
+[x] Spot-check DB: raw_charts 1, fact_chart 50, gold_feature_coverage 50/33/66.00
+[x] Did NOT invent Q8a weekday for this smoke (chart_date 2026-11-19 = live Charts date)
 ```
 
 ### Phase 4 DoD / AC
 
-- [ ] **DoD-P4 / AC-V2-2:** Manual full chain OK với builders hiện có  
+- [x] **DoD-P4 / AC-V2-2:** Manual full chain OK với builders hiện có  
+  - **Lưu ý:** DoD-P4 theo nghĩa "một watermark all-green" đã xanh; P4-06 (recovery) và AC-V2-3/4 vẫn mở trước khi sang Phase 5  
 - [ ] **AC-V2-3:** Recovery from failed curated task — P4-06  
 - [ ] **AC-V2-4:** Fail bất kỳ task → DAG không success; no Gold soft_fail  
-- [ ] **AC-V2-5:** CLI `run` vẫn Bronze-only  
+- [x] **AC-V2-5:** CLI `run` vẫn Bronze-only  
   - **Verify thêm:** `python -m spotify_pipeline run --help`  
+  - **Evidence (26/11):** help ghi "Silver/Gold/report still deferred"; `run.py` không gọi silver/gold  
 
 **GATE:** Không sang Phase 5 nếu DoD-P4 chưa xanh (Q7).
 
@@ -264,8 +274,8 @@ country:     global
 |-------|---------|---------|-------|
 | 1 Docs | [x] | [x] | SPEC_V2 + pointers + this checklist (2026-11-19) |
 | 2 Skeleton | [x] | [x] | `dags/` + `docker/airflow/` + `docs/ops/AIRFLOW.md` (2026-11-19) |
-| 3 Bronze | [x] | [ ] | Code + image + runbook xong (26/11). Còn P3-02 / P3-04: smoke trigger với live date (chưa chạy, ghi DB thật) |
-| 4 Silver/Gold + smoke | [ ] | [ ] | **GATE for P5** |
+| 3 Bronze | [x] | [x] | Smoke 26/11: `bronze` success cho 2026-11-19 (run `smoke_p4_20261119`) |
+| 4 Silver/Gold + smoke | [x] | [ ] | **GATE for P5.** Smoke all-green 26/11 (P4-01..05, 07, AC-V2-2, AC-V2-5). Còn P4-06 recovery demo + AC-V2-3/4 |
 | 5 Schedule + catch-up | [ ] | [ ] | Q7 then Q3/Q10 |
 | 6 CI | [ ] | [ ] | |
 | 7 Runbook | [ ] | [ ] | |

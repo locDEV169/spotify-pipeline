@@ -1,4 +1,4 @@
-# Airflow ops (SPEC v2 Phase 3)
+# Airflow ops (SPEC v2 Phase 3–4)
 
 **DAG:** `spotify_weekly` · **Spec:** [`docs/spec/SPEC_V2.md`](../spec/SPEC_V2.md) · **Q11=A:** Airflow runs in Docker, **not** in default `pyproject` deps.
 
@@ -18,7 +18,7 @@ docker compose -f docker/airflow/docker-compose.yml up -d --build
 docker compose -f docker/airflow/docker-compose.yml logs -f airflow
 ```
 
-`src/` is copied into the image, not mounted. Rebuild after any change under `src/`.
+`src/` and `docs/sql/` are copied into the image, not mounted (Silver/Gold load SQL templates from `<repo root>/docs/sql`). Rebuild after any change under `src/` or `docs/sql/`.
 
 On Windows Docker Desktop, `docker compose ... build` may exit 0 without building (buildx bake asks for filesystem privileges). If that happens, build directly and start without rebuilding:
 
@@ -39,9 +39,9 @@ docker compose -f docker/airflow/docker-compose.yml exec airflow airflow dags li
 
 UI → DAGs → `spotify_weekly` (may start **paused** — unpause to trigger).
 
-## Manual trigger (Phase 3)
+## Manual trigger (Phase 3–4)
 
-`bronze` calls `run_bronze` for one watermark. `build_silver` and `build_gold` are still `EmptyOperator` placeholders (Phase 4). `schedule=None` (Q7 stage 1 — manual only).
+Chain: `bronze >> build_silver >> build_gold`, all for the same watermark. `bronze` calls `run_bronze`; `build_silver` / `build_gold` call the library builders (DB only, no HTTP). The DAG run is green only when all three succeed. If a task fails, downstream does not run — fix the cause, then **Clear** the failed task (with downstream, not upstream) so Bronze is not re-run. `schedule=None` (Q7 stage 1 — manual only).
 
 Trigger with conf (Q8a still OPEN — pass `chart_date` explicitly):
 
@@ -59,6 +59,8 @@ Rules:
 - `chart_date` must be the **live** Charts `public/v0` date at trigger time. Charts only serves the current week. Any other date fails the `bronze` task with `live chart watermark mismatch` and writes nothing. The task log shows the live date as `live=(...)`.
 - An empty `chart_date` fails with `chart_date is required (YYYY-MM-DD)`.
 - `bronze` has `retries=1` with a 5-minute delay. A retry re-runs ingest and appends rows under a new `run_id` (Q9=B).
+- `build_silver` / `build_gold` have `retries=1` with a 1-minute delay (idempotent upserts / read-only views).
+- `build_silver` reads the **latest** Bronze for the watermark. `build_gold` only reads Silver views; with no Silver rows it would report zeros, so check `chart_rows > 0` in its log.
 - The DAG calls `run_bronze(write_fs=False)`. Bronze is written to Postgres only. The container does not write `data/bronze` files.
 
 ## Stop
