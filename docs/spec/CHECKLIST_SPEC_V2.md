@@ -107,18 +107,21 @@ Tick khi implementation **khớp** lock (không “gần đúng”).
 
 ### Checks
 
-- [ ] **P3-01** Task `bronze` gọi **`run_bronze`** hoặc CLI `python -m spotify_pipeline run ...`  
+- [x] **P3-01** Task `bronze` gọi **`run_bronze`** hoặc CLI `python -m spotify_pipeline run ...`  
   - **Verify:** DAG/operator — import `run_bronze` **hoặc** Bash/CLI `run`  
+  - **Evidence (26/11):** `dags/spotify_weekly.py` — `PythonOperator` `bronze` gọi `run_bronze(watermark, write_fs=False)`; DagBag parse không lỗi, `bronze` là `PythonOperator`
 - [ ] **P3-02** Watermark: **DAG params/conf `chart_date`** (và type/country) khi Q8a OPEN  
   - **Verify:** trigger manual với conf:  
     `{"chart_date":"YYYY-MM-DD","chart_type":"weekly_top_songs","country":"global"}`  
     Task log in watermark đúng — **không** dựa weekday bịa  
-- [ ] **P3-03** Defaults MVP: `weekly_top_songs` + `global` (Q10)  
+- [x] **P3-03** Defaults MVP: `weekly_top_songs` + `global` (Q10)  
   - **Verify:** code default hoặc docs operator  
+  - **Evidence (26/11):** DAG params defaults + `docs/ops/AIRFLOW.md` "Manual trigger (Phase 3)"  
 - [ ] **P3-04** Manual trigger: Bronze task **success** cho một `chart_date` biết trước  
   - **Verify:** UI task `bronze` = success; và/hoặc SQL có `music.raw_*` mới  
-- [ ] **P3-05** Airflow retries trên Bronze **và** client 429 vẫn còn trong app  
+- [x] **P3-05** Airflow retries trên Bronze **và** client 429 vẫn còn trong app  
   - **Verify:** `retries=` / `default_args` trong DAG; `rg -n "Retry-After|429" src/spotify_pipeline/clients/`  
+  - **Evidence (26/11):** `bronze` `retries=1`, `retry_delay=5min`. 429 + `Retry-After` còn ở `clients/reccobeats.py`. **Gap G8:** Spotify/Charts client chưa có 429 retry, `clients/http.py` vẫn stub (không thuộc checklist Phase 3)  
 
 ### Phase 3 DoD / AC
 
@@ -261,7 +264,7 @@ country:     global
 |-------|---------|---------|-------|
 | 1 Docs | [x] | [x] | SPEC_V2 + pointers + this checklist (2026-11-19) |
 | 2 Skeleton | [x] | [x] | `dags/` + `docker/airflow/` + `docs/ops/AIRFLOW.md` (2026-11-19) |
-| 3 Bronze | [ ] | [ ] | params path if Q8a OPEN |
+| 3 Bronze | [x] | [ ] | Code + image + runbook xong (26/11). Còn P3-02 / P3-04: smoke trigger với live date (chưa chạy, ghi DB thật) |
 | 4 Silver/Gold + smoke | [ ] | [ ] | **GATE for P5** |
 | 5 Schedule + catch-up | [ ] | [ ] | Q7 then Q3/Q10 |
 | 6 CI | [ ] | [ ] | |

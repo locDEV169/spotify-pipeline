@@ -7,7 +7,10 @@
 
 services:
   airflow:
-    image: apache/airflow:2.9.3-python3.12
+    build:
+      context: ../..
+      dockerfile: docker/airflow/Dockerfile
+    image: spotify-pipeline-airflow:local
     container_name: spotify-pipeline-airflow
     ports:
       - "8080:8080"
