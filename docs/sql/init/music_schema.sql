@@ -159,7 +159,30 @@ FROM music.fact_chart AS f
 INNER JOIN music.dim_track AS t ON t.track_id = f.track_id
 WHERE t.features_found IS TRUE;
 
--- ===== Ops (SPEC_V2 §19a addendum) =====
+-- Rank vs audio features (SPEC_V2 §19c). Raw pairs only, no statistics.
+-- Per-week grain; features_found rows only (top ranks may be missing).
+CREATE OR REPLACE VIEW music.gold_rank_features AS
+SELECT
+    f.chart_date,
+    f.chart_type,
+    f.country,
+    f.track_id,
+    t.track_name,
+    f.rank,
+    t.acousticness,
+    t.danceabili
+    t.energy,
+    t.instrumentalness,
+    t.liveness,
+    t.speechiness,
+    t.valence,
+    t.loudness,
+    t.tempo
+FROM music.fact_chart AS f
+INNER JOIN music.dim_track AS t ON t.track_id = f.track_id
+WHERE t.features_found IS TRUE;
+
+-- ===== Ops (SPEC_V2 §19b addendum) =====
 -- One row per Airflow dag_run, written best-effort by the DAG task wrappers
 -- (pipeline/ops.py). status: running -> success | failed; Clear re-opens it.
 -- summary = {task: result} for bronze / build_silver / build_gold.

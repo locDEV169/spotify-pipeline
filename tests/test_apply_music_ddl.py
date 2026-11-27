@@ -38,3 +38,4 @@ def test_music_schema_is_idempotent_and_has_ops_objects() -> None:
     joined = "\n".join(stmts)
     assert "music.ops_pipeline_health" in joined
     assert "music.pipeline_runs" in joined
+    assert "music.gold_rank_features" in joined
