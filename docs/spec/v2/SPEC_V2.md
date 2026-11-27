@@ -473,6 +473,16 @@ Observability only; **no gate**, the graph stays `bronze >> build_silver >> buil
 
 ---
 
+## 19c. Rank vs audio features (27/11/2026 — built)
+
+Replaces v1 "popularity vs features" (`track_popularity` is NULL on Dev Mode; the existing `popularity_*` code is kept unchanged).
+
+- **View `music.gold_rank_features`** — raw (rank, feature) pairs: `chart_date, chart_type, country, track_id, track_name, rank` + 9 numeric features (`acousticness … valence`, `loudness`, `tempo`). Same join and `features_found IS TRUE` filter as `gold_mood_segments` (different columns). Pure SQL, no statistics, no new task; `build_gold` is unchanged.
+- **Caveats for readers:** per-week grain only (do not pool weeks: the same track repeats). Only ~32–33 rows per week and the top ranks (1–6) have no features, so any correlation is weak evidence (n≈33 needs |ρ|≈0.35 for 5% significance; valence Spearman was −0.30 / −0.39 for 12/11 and 19/11). Rank every column before a Spearman (`rank() OVER`), and exclude NULLs.
+- Applied with `scripts/ddl/apply_music_ddl.py`; not consumed by the Flask API (which reads Silver).
+
+---
+
 ## 20. Changelog
 
 | Date | Change |
@@ -481,6 +491,7 @@ Observability only; **no gate**, the graph stays `bronze >> build_silver >> buil
 | 2026-11-19 | Phase 1: decision record [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md); v1 Assumption #5 rewritten to Airflow lock. |
 | 2026-11-26 | Phase 4 green; Phase 5 schedule on (Mon 09:00 Asia/Bangkok). **Q8a locked** (Thursday before `data_interval_end`). **Catch-up delivery clarified:** `public/v0` is live-only, so ~8 weeks accumulate forward (Q3/Q10 unchanged). Added Backlog section for v2.0-diagram ideas outside v2 scope; split as-built diagram into `music-pipeline-v2.1.drawio` while keeping 19/11 `v2.0` untouched. |
 | 2026-11-26 | **Ops addendum (§19b):** `music.pipeline_runs` + `music.ops_pipeline_health`, best-effort, lineage via `summary`; `dq_results`/DQ gate stay in Backlog. Airflow image installs the app without `flask` (API-only dependency conflicts with Airflow constraints). |
+| 2026-11-27 | **§19c:** `music.gold_rank_features` view (rank vs 9 audio features, per week, `features_found` only). Built on request despite the analysis recommending docs-only; diagram v2.1 cell `gld_rank` updated. |
 
 ---
 

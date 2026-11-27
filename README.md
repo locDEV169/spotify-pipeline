@@ -193,6 +193,7 @@ Reads **only** Silver (tables/VIEWs) — no HTTP, no Bronze re-parse. Formal SCD
 | VIEW `music.gold_feature_coverage` | Chart rows / features_found % (LEFT JOIN spirit) |
 | VIEW `music.gold_movers` | `rank_delta` where `prev_rank IS NOT NULL` (no new/re-entry taxonomy yet) |
 | VIEW `music.gold_mood_segments` | energy/valence when `features_found=true` (INNER JOIN — intentional; ≠ BR-6 drop) |
+| VIEW `music.gold_rank_features` | rank + 9 audio features per week, `features_found=true` only (raw pairs, no stats; SPEC_V2 §19c) |
 | Runtime SQL | [`docs/sql/gold/gold_queries.sql`](docs/sql/gold/gold_queries.sql) · smoke [`gold_check.sql`](docs/sql/gold/gold_check.sql) |
 | Package | `src/spotify_pipeline/pipeline/gold/` — readers + `build_gold` |
 

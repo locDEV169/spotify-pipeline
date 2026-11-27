@@ -30,7 +30,10 @@ Làm sai một dòng dưới đây = fail SPEC v2 dù DAG “chạy được”.
 - [x] **OPS-01** `music.pipeline_runs` + `music.ops_pipeline_health` có trong `music_schema.sql`, apply idempotent  
   - **Verify:** `pytest tests/test_apply_music_ddl.py`; `SELECT * FROM music.ops_pipeline_health`  
 - [x] **OPS-02** Run DAG thật → đúng 1 row `pipeline_runs` (`success`, `summary` có `bronze`/`build_silver`/`build_gold`)  
-  - **Evidence (26/11):** manual run `ops_live_ok` (chart_date 2026-11-19) → 1 row, status=success  
+  - **Evidence (26/11):** manual run `ops_live_ok` (chart_date 2026-11-19) → 1 row, status=success
+- [x] **GLD-01** `music.gold_rank_features` ([SPEC §19c](SPEC_V2.md)) có trong `music_schema.sql`, plain view, chỉ `features_found`, số dòng khớp `gold_feature_coverage.features_found_rows`
+  - **Verify:** `pytest tests/test_apply_music_ddl.py`; `SELECT cv.chart_date, cv.features_found_rows, (SELECT count(*) FROM music.gold_rank_features v WHERE v.chart_date = cv.chart_date) FROM music.gold_feature_coverage cv` (hai cột bằng nhau)
+  - **Evidence (27/11):** 2026-11-12 → 32/32, 2026-11-19 → 33/33
 
 ---
 
