@@ -4,7 +4,7 @@
 **Date:** 2026-11-19 (Asia/Bangkok)  
 **Deciders:** Chubby  
 **Supersedes:** v1 Assumption #5 (“CLI + optional OS cron; No Airflow/Prefect yet”) **for the weekly automated path**  
-**Specs:** [`SPEC_V2.md`](SPEC_V2.md) · [`SPEC.md`](SPEC.md) · Self-check: [`CHECKLIST_SPEC_V2.md`](CHECKLIST_SPEC_V2.md)
+**Specs:** [`SPEC_V2.md`](SPEC_V2.md) · [`SPEC.md`](../SPEC.md) · Self-check: [`CHECKLIST_SPEC_V2.md`](CHECKLIST_SPEC_V2.md)
 
 ---
 
@@ -58,7 +58,7 @@ v1 ran the medallion pipeline via CLI (`run` / stage commands). Soft items SQ-11
 
 - Ops bar rises (Docker/separate Airflow env).
 - **Q8a LOCKED 26/11:** `chart_date` = Thứ Năm gần nhất trước `data_interval_end` (see SPEC_V2 §8).
-- Catch-up (~8 × full chain) increases Charts/API/DB load — enable only after Phase 4 green (Q7).
+- ~8 weeks accumulate forward, one scheduled run per week (`public/v0` has no history; decision 26/11) — schedule enabled only after Phase 4 green (Q7).
 - v1 docs that said “Airflow out of MVP” must defer to this record + `SPEC_V2.md` for weekly path.
 
 ### Non-goals (unchanged)
@@ -72,7 +72,7 @@ v1 ran the medallion pipeline via CLI (`run` / stage commands). Soft items SQ-11
 
 ## Assumption #5 (v1) — new wording
 
-See [`SPEC.md`](SPEC.md) Assumptions §5. Summary:
+See [`SPEC.md`](../SPEC.md) Assumptions §5. Summary:
 
 - **Weekly path:** Airflow DAG `spotify_weekly` (this decision).
 - **Local/dev:** CLI `run` Bronze-only + stage CLIs.
@@ -90,8 +90,22 @@ See [`SPEC.md`](SPEC.md) Assumptions §5. Summary:
 
 ---
 
+## Addendum 2026-11-26 — Ops (SPEC_V2 §19b)
+
+| Decision | Choice |
+|----------|--------|
+| Ops write failure | Best-effort: log a warning, never fail the task |
+| Upsert key | `(dag_id, dag_run_id)` — one row per DAG run |
+| `run_id` lineage | Option C: keep per-layer `uuid4`; record each task result (with its `run_id`) in `summary` |
+| Writer | DAG only; CLI does not write `pipeline_runs` |
+| Graph | Unchanged (`bronze >> build_silver >> build_gold`), no new task, no gate |
+| `error_message` | DB URIs redacted, truncated to 1000 chars |
+| Out of scope | `dq_results`, `dq_passed`, DQ gate, notify, freshness alert (stay in Backlog §19a) |
+
+---
+
 ## References
 
 - [`SPEC_V2.md`](SPEC_V2.md) — full orchestration spec
 - [`CHECKLIST_SPEC_V2.md`](CHECKLIST_SPEC_V2.md) — self-verification checklist
-- [`architecture/version_2/`](../../architecture/version_2/) — v2 diagrams
+- [`architecture/version_2/`](../../../architecture/version_2/) — v2 diagrams

@@ -12,7 +12,7 @@
 
 | Doc | Role |
 |-----|------|
-| [`SPEC.md`](SPEC.md) | **v1** — medallion data product, Bronze Stage 4, Silver C10, Gold C11, CLI-centric orchestration (Assumption #5: CLI + optional OS cron; **No Airflow**) |
+| [`SPEC.md`](../SPEC.md) | **v1** — medallion data product, Bronze Stage 4, Silver C10, Gold C11, CLI-centric orchestration (Assumption #5: CLI + optional OS cron; **No Airflow**) |
 | **This file (`SPEC_V2.md`)** | **v2** — **supersedes orchestration / scheduling / weekly automation** decisions only |
 
 **Rule:** Where this document conflicts with v1 on **orchestration**, **v2 wins**.  
@@ -22,14 +22,15 @@ Where v2 is silent (HTTP clients, ReccoBeats rules, Silver LEFT JOIN, Gold analy
 
 | File | Meaning |
 |------|---------|
-| [`architecture/version_1/`](../../architecture/version_1/) | v1 pipeline diagram (CLI / generic scheduler) |
-| [`architecture/version_2/music-pipeline-v2.0.png`](../../architecture/version_2/music-pipeline-v2.0.png) | v2 architecture image |
-| [`architecture/version_2/music-pipeline-v2.0.drawio`](../../architecture/version_2/music-pipeline-v2.0.drawio) | v2 editable source |
+| [`architecture/version_1/`](../../../architecture/version_1/) | v1 pipeline diagram (CLI / generic scheduler) |
+| [`architecture/version_2/music-pipeline-v2.0.png`](../../../architecture/version_2/music-pipeline-v2.0.png) | v2.0 proposal image (19/11/2026 — includes §19a backlog ideas) |
+| [`architecture/version_2/music-pipeline-v2.0.drawio`](../../../architecture/version_2/music-pipeline-v2.0.drawio) | v2.0 proposal editable source (19/11/2026) |
+| [`architecture/version_2/music-pipeline-v2.1.drawio`](../../../architecture/version_2/music-pipeline-v2.1.drawio) | **v2.1 as-built** editable source (26/11/2026 — Option B + `BACKLOG` labels) |
 
 **Related:**
 - [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md) — **accepted decision record** (Assumption #5 + Phase 0 locks)
 - [`CHECKLIST_SPEC_V2.md`](CHECKLIST_SPEC_V2.md) — **self-verification checklist** khi tự implement v2 (tick theo phase)
-- [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md) — gap tracking v1; soft SQ-11 / GQ-8 **superseded for weekly path** by this DAG (see § Migration)
+- [`CHECKLIST_SPEC_GAPS.md`](../CHECKLIST_SPEC_GAPS.md) — gap tracking v1; soft SQ-11 / GQ-8 **superseded for weekly path** by this DAG (see § Migration)
 
 ---
 
@@ -38,11 +39,11 @@ Where v2 is silent (HTTP clients, ReccoBeats rules, Silver LEFT JOIN, Gold analy
 Keep the v1 batch medallion pipeline, and add **reliable weekly orchestration**:
 
 1. Run one watermark through **Bronze → Silver → Gold** via Airflow DAG **`spotify_weekly`**.
-2. Own **schedule**, **task retries**, and **historical week catch-up** in Airflow (not in Python scheduler code).
+2. Own **schedule**, **task retries**, and **week catch-up** (accumulated forward, one live week per scheduled run — §10) in Airflow (not in Python scheduler code).
 3. Reuse existing Python entrypoints: `run_bronze`, `build_silver`, `build_gold` — **no rewrite** of Silver/Gold into Airflow SQL operators.
 4. Preserve offline-first CI (`pytest` without live Airflow or live APIs).
 
-**Success looks like (v2):** A manual (then scheduled) Airflow DAG run for watermark W lands Bronze and refreshes Silver + Gold; failures retry from the failed curated task without re-Bronzing by default; ~8 weeks of global weekly songs can be caught up as a full chain later.
+**Success looks like (v2):** A manual (then scheduled) Airflow DAG run for watermark W lands Bronze and refreshes Silver + Gold; failures retry from the failed curated task without re-Bronzing by default; ~8 weeks of global weekly songs accumulate as full-chain runs (one live week per scheduled run).
 
 ---
 
@@ -73,7 +74,7 @@ Keep the v1 batch medallion pipeline, and add **reliable weekly orchestration**:
 | Weekly “done” | Manual CLI chain (and soft SQ-11/GQ-8 into `run`) | DAG all-green: Bronze + Silver + Gold |
 | Wire Silver/Gold | Soft SQ-11 / GQ-8 into `run` | **DAG tasks**; **`run` stays Bronze-only** |
 | Retries | Client HTTP/DB retries | Client retries **+** Airflow task retries |
-| Historical weeks | Manual `--chart-date` | Airflow week catch-up (full chain) |
+| Weekly history | Manual `--chart-date` | Scheduled runs accumulate weeks forward (full chain); no back-fill of past weeks — `public/v0` serves only the live week |
 | Airflow install | N/A | Docker / separate env — **not** default `pyproject` deps |
 
 ---
@@ -86,7 +87,8 @@ Keep the v1 batch medallion pipeline, and add **reliable weekly orchestration**:
 - Require live Airflow (or live Charts/Spotify/ReccoBeats) for default CI.
 - Grow `pipeline/run.py` into Silver/Gold (SQ-11 / GQ-8 **cancelled for weekly path**).
 - Daily Charts `auth/v0` / multi-country (still out unless separately decided).
-- Inventing **Q8a** week-boundary weekday before it is locked.
+- Changing the locked **Q8a** rule (Thursday before `data_interval_end`) without a new decision.
+- Back-filling past weeks from a new history source (e.g. `auth/v0`, CSV import) — see §10.
 
 ---
 
@@ -167,7 +169,7 @@ bronze (run_bronze)
 - HTTP I/O only in **bronze** (and its callees).
 - **build_silver** / **build_gold** = DB-only builders (v1 Fact).
 
-See also: [`architecture/version_2/music-pipeline-v2.0.png`](../../architecture/version_2/music-pipeline-v2.0.png).
+See also: [`architecture/version_2/music-pipeline-v2.1.drawio`](../../../architecture/version_2/music-pipeline-v2.1.drawio) (as-built 26/11) and [`architecture/version_2/music-pipeline-v2.0.png`](../../../architecture/version_2/music-pipeline-v2.0.png) (19/11 proposal).
 
 ---
 
@@ -194,7 +196,7 @@ dags/
   spotify_weekly.py          # Airflow DAG only (thin wrappers)
 docker/                      # or compose at repo root — Airflow stack (Q11)
 docs/spec/SPEC.md            # v1
-docs/spec/SPEC_V2.md         # this file
+docs/spec/v2/SPEC_V2.md         # this file
 src/spotify_pipeline/        # unchanged package ownership of builders
 ```
 
@@ -255,7 +257,7 @@ Before the Q8a lock (historical, superseded):
 
 | Term | Meaning |
 |------|---------|
-| **Week catch-up** | Airflow backfill/catch-up of historical **watermarks** (full chain) |
+| **Week catch-up** | Weekly **watermarks** accumulated forward by scheduled Airflow runs (full chain) |
 | **C12 feature backfill** | Re-query ReccoBeats where `features_found=false` — **not** in this DAG |
 
 ---
@@ -268,12 +270,14 @@ Before the Q8a lock (historical, superseded):
 |-------|---------|--------|
 | **D1 — Manual** | Operator triggers DAG / tasks | Prove one watermark all-green (Phase 4 gate) |
 | **D2 — Schedule** | After D1 green; enable timetable | Default proposal **Mon 09:00 Asia/Bangkok** (Q7); confirm/override at enable time |
-| **D3 — Catch-up** | After D1 (**Recommendation:** after D2 or with care under D1) | ~**8 weeks**, `global` + `weekly_top_songs`, **full chain** each week (Q3, Q10) |
+| **D3 — Catch-up** | Accumulates after D2 (decision 26/11, Chubby) | ~**8 weeks**, `global` + `weekly_top_songs`, **full chain** each week (Q3, Q10); one scheduled run per week, `catchup=False`, `max_active_runs=1` |
 
-### Catch-up rules (locked)
+### Catch-up rules (locked; delivery clarified 26/11)
+
+- **Delivery (decision 26/11, Chubby):** Charts `public/v0` serves only the live week and `ingest-charts` rejects any other `chart_date`, so past weeks cannot be re-ingested. The ~8 weeks accumulate forward: one scheduled run per week. `catchup=False`. A missed run is not re-created; a manual run with the live date can fill a gap.
 
 - Each caught-up week runs **Bronze → Silver → Gold**.
-- Same watermark mapping rules as scheduled runs (Q8 + Q8a when closed).
+- Same watermark mapping rules as scheduled runs (Q8 + Q8a, locked 26/11).
 - Bronze append semantics apply if a week is re-processed (Q9).
 
 ---
@@ -335,8 +339,8 @@ pytest -q
 | Reliability | Airflow task retries + client 429 handling; all-green definition |
 | Security | Secrets not in git; worker env injection |
 | Operability | Manual-first, then schedule; clear-from-failed-task runbook |
-| Performance | Catch-up ~8 weeks full chain — expect API + DB load; prefer serial/low parallelism (**Recommendation**) |
-| Compliance / ToS | Same learning-demo constraints as v1; catch-up increases Charts `public/v0` call volume |
+| Performance | ~8 weeks accumulate, one full-chain run per week (`max_active_runs=1`); about 108 Spotify calls per run |
+| Compliance / ToS | Same learning-demo constraints as v1; the weekly schedule adds one Charts `public/v0` call per run |
 
 ---
 
@@ -344,10 +348,11 @@ pytest -q
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Q8a unset → wrong `chart_date` | High | Mark OPEN; use explicit params until locked |
+| Q8a rule vs Charts publish day → `live chart watermark mismatch` | Medium | Q8a locked 26/11; verify on first scheduled run (P5-02); manual re-run with the live date |
 | Dual retries → rate-limit storms | Medium | Modest Airflow retries; honor Retry-After |
 | Append Bronze without latest reads | Medium | Keep/verify Silver `fetch_latest_*` |
-| Catch-up cost (8 × full chain) | Medium | Run after Phase 4 green; monitor API errors |
+| No history source (`public/v0` is live-only) | High | Forward accumulation (~8 real weeks); back-fill needs a new source (non-goal) |
+| Accumulation cost (full chain per week) | Low | Schedule only after Phase 4 green; `max_active_runs=1`; Spotify/Charts 429 retry gap (G8) still open |
 | Docs drift (v1 says no Airflow) | Medium | SPEC_V2 + README sync in Phase 1/7 |
 | Confusing week catch-up with C12 | High | Naming + non-goals |
 
@@ -370,7 +375,7 @@ pytest -q
 2. **Phase 2 — Airflow skeleton:** DAG id `spotify_weekly` + Docker/separate env (no default pyproject Airflow).
 3. **Phase 3 — Bronze task:** Call `run_bronze`; watermark from params and/or Q8a when closed.
 4. **Phase 4 — Curated tasks:** `build_silver` >> `build_gold`; prove **all green** on one watermark (manual).
-5. **Phase 5 — Schedule then catch-up:** Enable weekly timetable (Q7); then ~8-week full-chain catch-up (Q3/Q10) with append semantics (Q9).
+5. **Phase 5 — Schedule then catch-up:** Enable weekly timetable (Q7); ~8 weeks then accumulate forward as full-chain runs (Q3/Q10) with append semantics (Q9).
 6. **Phase 6 — CI:** Ensure default pytest stays offline-only.
 7. **Phase 7 — Runbook:** Clear-from-failed-task; C12 naming; architecture v2 link.
 
@@ -412,8 +417,8 @@ pytest -q
 
 ### AC-V2-6 — Catch-up
 
-**Given** Phase 5 catch-up enabled  
-**When** ~8 global `weekly_top_songs` weeks are processed  
+**Given** the weekly schedule has been running  
+**When** ~8 global `weekly_top_songs` weeks have been processed (one scheduled run per week)  
 **Then** each week runs full Bronze→Silver→Gold and is not labeled as C12 feature backfill.
 
 ### AC-V2-7 — CI
@@ -424,9 +429,9 @@ pytest -q
 
 ### AC-V2-8 — Q8a
 
-**Given** Q8a still OPEN  
+**Given** Q8a locked (most recent Thursday before `data_interval_end`)  
 **When** scheduled `chart_date` mapping is implemented  
-**Then** implementers must not invent a weekday; either wait for lock or use explicit DAG params only.
+**Then** scheduled runs derive `chart_date` by that rule only; manual runs may pass an explicit `chart_date`; no other weekday is invented.
 
 ---
 
@@ -443,12 +448,39 @@ Carry forward all v1 business rules. **Add:**
 
 ---
 
+## 19a. Backlog (outside v2 scope — not decided)
+
+Ideas from the 19/11 v2.0 architecture proposal that are **not** part of Option B. None is built; none changes Q1–Q11. Each needs its own decision before entering a spec:
+
+- dbt for Silver/Gold (conflicts with Q4 and the "no rewrite of Silver/Gold" non-goal).
+- DQ gate task before Gold (if wanted, put it inside the existing builders to keep the 3-task graph; coverage is 64–66% so an 80% threshold would warn/fail every week).
+- `dq_results` / `dq_passed`, notify (Slack/email) on failure, freshness alert. (`pipeline_runs` and `ops_pipeline_health` moved to §19b.)
+- Three Postgres roles; Supabase CLI migrations; schema split `music_raw/music_silver/music_gold`.
+- Serving: FastAPI + Streamlit/Next.js, Metabase/Grafana (BI deferred, Assumption #7).
+- `gold_mood_segments` as materialized view/snapshot; Airflow Connections instead of `.env`.
+
+---
+
+## 19b. Ops addendum (26/11/2026 — built)
+
+Observability only; **no gate**, the graph stays `bronze >> build_silver >> build_gold` and no Q1–Q11 lock changes.
+
+- **View `music.ops_pipeline_health`** — one row per watermark: Bronze payloads/runs/last ingest, `gold_feature_coverage`, `silver_stale` (Silver missing or older than Bronze), `bronze_age`.
+- **Table `music.pipeline_runs`** — one row per Airflow run, key `(dag_id, dag_run_id)`; `status` running/success/failed, `current_task`, `error_task`, `error_message` (DB URIs redacted, ≤1000 chars), `summary` jsonb.
+- **Lineage (run_id option C):** the three layers keep their own `uuid4` `run_id`s; each task's result (including its `run_id`) is merged into `summary`. Layers are not forced to share one id.
+- **Best-effort writes:** a failed Ops write only logs a warning and never fails a task. Only the DAG writes `pipeline_runs`; the CLI does not. Written by `src/spotify_pipeline/pipeline/ops.py` (no airflow import) from the DAG wrappers and a task-level `on_failure_callback` (fires after the last retry).
+- **Known limits:** "Mark success" in the Airflow UI bypasses the wrappers, so the row can stay `running`/`failed`; a killed worker can leave a stale `running` row. DDL is applied manually (`scripts/ddl/apply_music_ddl.py`) before deploying the DAG.
+
+---
+
 ## 20. Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-11-19 | **SPEC v2** created: Airflow Option B + Phase 0 Q1–Q11 locks; supersedes v1 orchestration Assumption #5 for weekly path; Q8a left OPEN; C12/warehouse/BI/SQL-rewrite out of scope. |
 | 2026-11-19 | Phase 1: decision record [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md); v1 Assumption #5 rewritten to Airflow lock. |
+| 2026-11-26 | Phase 4 green; Phase 5 schedule on (Mon 09:00 Asia/Bangkok). **Q8a locked** (Thursday before `data_interval_end`). **Catch-up delivery clarified:** `public/v0` is live-only, so ~8 weeks accumulate forward (Q3/Q10 unchanged). Added Backlog section for v2.0-diagram ideas outside v2 scope; split as-built diagram into `music-pipeline-v2.1.drawio` while keeping 19/11 `v2.0` untouched. |
+| 2026-11-26 | **Ops addendum (§19b):** `music.pipeline_runs` + `music.ops_pipeline_health`, best-effort, lineage via `summary`; `dq_results`/DQ gate stay in Backlog. Airflow image installs the app without `flask` (API-only dependency conflicts with Airflow constraints). |
 
 ---
 
@@ -459,10 +491,10 @@ DAG:        spotify_weekly
 Tasks:      bronze(run_bronze) >> build_silver >> build_gold
 Success:    all green
 Recover:    clear from failed curated task
-Catch-up:   full chain; global weekly_top_songs; ~8 weeks
+Catch-up:   full chain; global weekly_top_songs; ~8 weeks accumulated forward (no history back-fill)
 Bronze I/O: append run_id; latest wins downstream
 run.py:     Bronze-only forever under this SPEC
 Airflow:    Docker/separate env; not in default pyproject
 CI:         pytest offline only
-OPEN:       Q8a week-boundary day
+Q8a:        LOCKED 26/11 — chart_date = Thursday before data_interval_end
 ```

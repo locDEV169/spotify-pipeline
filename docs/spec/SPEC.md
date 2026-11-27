@@ -5,7 +5,7 @@
 **Repo:** `spotify-data-pipeline` (greenfield)  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS
 
-> **Orchestration v2:** Weekly Airflow DAG `spotify_weekly` (Option B) — [`SPEC_V2.md`](SPEC_V2.md) · decision record [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md) · self-check [`CHECKLIST_SPEC_V2.md`](CHECKLIST_SPEC_V2.md).  
+> **Orchestration v2:** Weekly Airflow DAG `spotify_weekly` (Option B) — [`SPEC_V2.md`](v2/SPEC_V2.md) · decision record [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md) · self-check [`CHECKLIST_SPEC_V2.md`](v2/CHECKLIST_SPEC_V2.md).  
 > Where v2 conflicts with this file on **scheduling / Airflow / weekly automation**, **v2 wins**. Medallion builders, SoR, and business rules below remain authoritative unless v2 says otherwise.  
 > Assumption #5 is **locked** to Airflow for the weekly path (2026-11-19); historical “No Airflow” wording is superseded.
 
@@ -52,7 +52,7 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
    - Local `data/bronze/` = **optional dual-write** JSON envelope only — không thay SoR.
    - Historical note: early draft used FS + SQLite; that is **not** MVP SoR anymore.
 5. **Orchestration (locked 2026-11-19 — Decision Record):**  
-   - **Weekly path:** Airflow DAG **`spotify_weekly`** (Option B: Bronze → Silver → Gold). See [`SPEC_V2.md`](SPEC_V2.md) + [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md).  
+   - **Weekly path:** Airflow DAG **`spotify_weekly`** (Option B: Bronze → Silver → Gold). See [`SPEC_V2.md`](v2/SPEC_V2.md) + [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md).  
    - **Local/dev:** CLI `run` / `run_bronze` stay **Bronze-only**; stage CLIs `build-silver` / `build-gold` for repair. Soft SQ-11 / GQ-8 **not** implemented in `run.py` (superseded by DAG).  
    - **Out:** Prefect; OS cron as happy path.  
    - *Historical v1 text (superseded):* “CLI (+ optional OS cron); No Airflow/Prefect yet.”
@@ -253,7 +253,7 @@ flowchart LR
 
 **Watermark:** `(chart_date, chart_type, country)` — one pipeline run = one watermark.
 
-**Stage 4 fidelity (18/11/2026):** `EX` reads IDs from Bronze `music.raw_charts` (not live Charts re-fetch on happy path). `run` performs **logical fan-out**: extract once → enrich-spotify → enrich-reccobeats (sequential in-process; same ID set). **Silver C10 (18/11):** `build-silver` one-pass upserts `fact_chart` + dims + bridge + `features_found` from Bronze only (LEFT JOIN semantics). **`run` stays Bronze-only** — soft SQ-11 / GQ-8 superseded by Airflow DAG wiring ([`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md)). See [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md).
+**Stage 4 fidelity (18/11/2026):** `EX` reads IDs from Bronze `music.raw_charts` (not live Charts re-fetch on happy path). `run` performs **logical fan-out**: extract once → enrich-spotify → enrich-reccobeats (sequential in-process; same ID set). **Silver C10 (18/11):** `build-silver` one-pass upserts `fact_chart` + dims + bridge + `features_found` from Bronze only (LEFT JOIN semantics). **`run` stays Bronze-only** — soft SQ-11 / GQ-8 superseded by Airflow DAG wiring ([`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md)). See [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md).
 
 ---
 
@@ -274,7 +274,7 @@ flowchart LR
 | C11 | Gold builder | `pipeline/gold/` | Movers, SCD2 (nice), mood (`features_found=true`) | C10 |
 | C12 | Backfill | `pipeline/backfill/` | Re-query ReccoBeats where `features_found=false` | C5, C10 |
 | C13 | Analytics | `analytics/*` | Đọc Gold → report (`--report`); không gọi API | C11 |
-| C14 | CLI / run | `cli.py`, `pipeline/run.py` | Bronze-only cycle + exit codes; weekly orch → Airflow C17 ([`SPEC_V2.md`](SPEC_V2.md)) | all |
+| C14 | CLI / run | `cli.py`, `pipeline/run.py` | Bronze-only cycle + exit codes; weekly orch → Airflow C17 ([`SPEC_V2.md`](v2/SPEC_V2.md)) | all |
 | C17 | Airflow DAG | `dags/spotify_weekly` (planned) | Weekly Bronze→Silver→Gold; retries; week catch-up | C8–C11, C14 |
 | C15 | Fixtures / offline | `tests/fixtures/` | E2E 26/40 + batch41; `run --offline` | C5–C13 |
 | C16 | Tests | `tests/` | Retry, batching, LEFT JOIN, models, watermark | C2–C13 |
@@ -421,7 +421,7 @@ CI: offline tests only.
 **Ask first**
 - Enabling `auth/v0` or kworb HTML scraping.
 - Adding cloud warehouse / Prefect / public dashboard.
-- Changing SPEC v2 Airflow Phase 0 locks (see [`SPEC_V2.md`](SPEC_V2.md)).
+- Changing SPEC v2 Airflow Phase 0 locks (see [`SPEC_V2.md`](v2/SPEC_V2.md)).
 - Publishing dataset dumps.
 - Changing locked stack away from Charts + Web API + ReccoBeats.
 
@@ -444,7 +444,7 @@ CI: offline tests only.
 6. Gold summary (coverage + movers + mood).
 7. Backfill job.
 8. CLI `run` + README (architecture, risks, how to run offline).
-9. Orchestration v2: Airflow `spotify_weekly` per [`SPEC_V2.md`](SPEC_V2.md) / [`CHECKLIST_SPEC_V2.md`](CHECKLIST_SPEC_V2.md) (after Bronze/Silver/Gold builders — already landed).  
+9. Orchestration v2: Airflow `spotify_weekly` per [`SPEC_V2.md`](v2/SPEC_V2.md) / [`CHECKLIST_SPEC_V2.md`](v2/CHECKLIST_SPEC_V2.md) (after Bronze/Silver/Gold builders — already landed).  
 10. Optional: auth/v0, BI — after ⚠️ checklist below.
 
 ---
@@ -503,8 +503,8 @@ CI: offline tests only.
 | 2026-11-18 | Doc lock: **Q-C=1** Postgres `music.*` SoR (Assumption #4 + Tech Stack); **Q-D=2** single-ID Spotify MVP (Assumption #8 + Open Q1 closed for MVP); README synced. Batch `?ids=` / Silver builders vẫn deferred. |
 | 2026-11-18 | **Silver C10 MVP (W1–W6):** `build_silver` / CLI `build-silver` — fact_chart · dim_track · dim_artist+bridge · ReccoBeats `features_found` · LEFT JOIN read helper · COALESCE upserts. Soft SQ-1…SQ-7/SQ-11 kept as soft (run→Silver still deferred). Checklist §D. |
 | 2026-11-19 | **Gold C11 MVP (G1–G6):** `build_gold` / CLI `build-gold` — coverage + missing top-N · movers · mood (0.5 quadrants Assumption) · popularity skip-safe (Open Q2) · **GQ-5 Answer: defer formal SCD2**. Soft GQ-8: `run` still Bronze-only. Checklist §E. |
-| 2026-11-19 | **Orchestration v2 SPEC:** [`SPEC_V2.md`](SPEC_V2.md) — Airflow DAG `spotify_weekly` Option B + Phase 0 locks. Assumption #5 “No Airflow” **superseded for weekly path**. Soft SQ-11/GQ-8 superseded by DAG. Q8a week-boundary still OPEN. |
-| 2026-11-19 | **Phase 1 docs:** Assumption #5 rewritten to Airflow lock; decision record [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md); C14/C17 + Stage 4 fidelity note updated. |
+| 2026-11-19 | **Orchestration v2 SPEC:** [`SPEC_V2.md`](v2/SPEC_V2.md) — Airflow DAG `spotify_weekly` Option B + Phase 0 locks. Assumption #5 “No Airflow” **superseded for weekly path**. Soft SQ-11/GQ-8 superseded by DAG. Q8a week-boundary still OPEN. |
+| 2026-11-19 | **Phase 1 docs:** Assumption #5 rewritten to Airflow lock; decision record [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md); C14/C17 + Stage 4 fidelity note updated. |
 
 ---
 

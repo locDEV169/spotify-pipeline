@@ -12,6 +12,10 @@ FROM apache/airflow:2.9.3-python3.12
 COPY --chown=airflow:root pyproject.toml README.md /opt/spotify-pipeline/
 COPY --chown=airflow:root src /opt/spotify-pipeline/src
 COPY --chown=airflow:root docs/sql /opt/spotify-pipeline/docs/sql
-RUN pip install --no-cache-dir \
+# flask is skipped: only src/spotify_pipeline/api needs it (>=3.1), the DAG does
+# not, and Airflow 2.9.3's constraints pin flask==2.2.5 (resolver conflict).
+RUN pip install --no-cache-dir --no-deps -e /opt/spotify-pipeline \
+ && python -c "import tomllib; print('\n'.join(d for d in tomllib.load(open('/opt/spotify-pipeline/pyproject.toml','rb'))['project']['dependencies'] if not d.startswith('flask')))" > /tmp/app-requirements.txt \
+ && pip install --no-cache-dir \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt" \
-    -e /opt/spotify-pipeline
+    -r /tmp/app-requirements.txt
