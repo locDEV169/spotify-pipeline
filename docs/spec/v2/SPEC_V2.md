@@ -1,8 +1,8 @@
 # Spec v2: Spotify Pipeline — Airflow Orchestration (Option B)
 
-**Status:** Draft for implementation — orchestration v2 locked (Phase 0); coding not started  
-**Version:** 2.0 (orchestration)  
-**Date:** 2026-11-19 (Asia/Bangkok)  
+**Status:** Implemented — Phases 1–4 green; Phase 5 weekly schedule enabled (`0 9 * * 1` Mon 09:00 `Asia/Bangkok`); Ops §19b live; ~8-week forward accumulation in progress  
+**Version:** 2.1 (orchestration + Ops §19b)  
+**Date:** 2026-11-19 · **Updated:** 2026-11-27 (Asia/Bangkok)  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS  
 **Repo:** `spotify-pipeline` (package `spotify_pipeline`)
 
@@ -25,7 +25,7 @@ Where v2 is silent (HTTP clients, ReccoBeats rules, Silver LEFT JOIN, Gold analy
 | [`architecture/version_1/`](../../../architecture/version_1/) | v1 pipeline diagram (CLI / generic scheduler) |
 | [`architecture/version_2/music-pipeline-v2.0.png`](../../../architecture/version_2/music-pipeline-v2.0.png) | v2.0 proposal image (19/11/2026 — includes §19a backlog ideas) |
 | [`architecture/version_2/music-pipeline-v2.0.drawio`](../../../architecture/version_2/music-pipeline-v2.0.drawio) | v2.0 proposal editable source (19/11/2026) |
-| [`architecture/version_2/music-pipeline-v2.1.drawio`](../../../architecture/version_2/music-pipeline-v2.1.drawio) | **v2.1 as-built** editable source (26/11/2026 — Option B + `BACKLOG` labels) |
+| [`architecture/version_2/music-pipeline-v2.1.drawio`](../../../architecture/version_2/music-pipeline-v2.1.drawio) | **v2.1 as-built** editable source (27/11/2026 — Option B + Ops §19b + Flask API + `BACKLOG` separated) |
 
 **Related:**
 - [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md) — **accepted decision record** (Assumption #5 + Phase 0 locks)
@@ -137,39 +137,51 @@ Keep the v1 batch medallion pipeline, and add **reliable weekly orchestration**:
 ```mermaid
 flowchart LR
   PUB["Charts public/v0\nweekly Global top50"]
-  ORCH["Airflow DAG spotify_weekly\nwatermark =\nchart_date + chart_type + country"]
-  SEC["Secrets\nSpotify Client ID/Secret"]
-  BRONZE["Task: bronze\nrun_bronze"]
-  SILVER["Task: build_silver"]
-  GOLD["Task: build_gold"]
-  RAW["Bronze music.raw_*\ningested_at + run_id"]
-  CUR["Silver fact/dims\nGold views/builders"]
-  BI["BI deferred"]
+  SPAPI["Spotify Web API\nsingle /{id}"]
+  RBAPI["ReccoBeats\n?ids= ≤40"]
+  SEC["Secrets (.env)\nSpotify + Supabase"]
+  ORCH["Airflow DAG spotify_weekly\nMon 09:00 Asia/Bangkok\nQ8a: Thu < data_interval_end"]
+  BRONZE["Task 1: bronze\nrun_bronze(write_fs=False)"]
+  RAW["Bronze music.raw_*\nappend run_id + ingested_at"]
+  SILVER["Task 2: build_silver\n(DB-only)"]
+  SLVTBL["Silver music.*\nfact_chart + dims + bridge\n(LEFT JOIN)"]
+  GLDVW["Gold music.gold_*\n3 SQL VIEWs"]
+  GOLD["Task 3: build_gold\n(DB-only, no soft_fail)"]
+  OPS["Ops §19b (best-effort)\nmusic.pipeline_runs +\nops_pipeline_health"]
+  FLASK["Local Flask API\n/api/health, /api/charts\n(READ ONLY Silver)"]
+  BI["Public BI / FastAPI\n(BACKLOG §19a)"]
 
-  PUB --> ORCH
   ORCH --> BRONZE
-  BRONZE --> RAW
-  SEC -.-> BRONZE
   BRONZE --> SILVER
   SILVER --> GOLD
+  PUB --> BRONZE
+  SPAPI --> BRONZE
+  RBAPI --> BRONZE
+  SEC -.-> BRONZE
+  BRONZE --> RAW
   RAW --> SILVER
-  SILVER --> CUR
-  GOLD --> CUR
-  CUR --> BI
+  SILVER --> SLVTBL
+  SLVTBL --> GLDVW
+  GLDVW --> GOLD
+  ORCH -.-> OPS
+  GLDVW -.-> OPS
+  SLVTBL --> FLASK
+  GLDVW -.-> BI
 ```
 
 **Task graph (locked):**
 
 ```text
-bronze (run_bronze)
+bronze (run_bronze, write_fs=False)
   >> build_silver
   >> build_gold
 ```
 
 - HTTP I/O only in **bronze** (and its callees).
 - **build_silver** / **build_gold** = DB-only builders (v1 Fact).
+- **Ops (§19b):** task wrappers + `on_failure_callback` write best-effort state to `music.pipeline_runs` (no extra task, no gate).
 
-See also: [`architecture/version_2/music-pipeline-v2.1.drawio`](../../../architecture/version_2/music-pipeline-v2.1.drawio) (as-built 26/11) and [`architecture/version_2/music-pipeline-v2.0.png`](../../../architecture/version_2/music-pipeline-v2.0.png) (19/11 proposal).
+See also: [`architecture/version_2/music-pipeline-v2.1.drawio`](../../../architecture/version_2/music-pipeline-v2.1.drawio) (as-built 27/11) and [`architecture/version_2/music-pipeline-v2.0.png`](../../../architecture/version_2/music-pipeline-v2.0.png) (19/11 proposal).
 
 ---
 
@@ -188,16 +200,19 @@ Reuse as implemented. Highlights:
 | C12 | Feature backfill | **Out of DAG**; keep separate naming from week catch-up |
 | C14 | CLI / `run` | **Bronze-only** entrypoint + local tools; **not** weekly orchestrator |
 | C17 **(new)** | Airflow DAG `spotify_weekly` | Schedule (stage 2), retries, catch-up, task wiring |
+| C18 **(new, §19b)** | Ops observability (`pipeline/ops.py`) | Best-effort `music.pipeline_runs` writer + `music.ops_pipeline_health` view (DAG-only; no gate) |
+| C19 **(local API)** | Flask Dashboard API (`api/`, `silver/dashboard.py`) | Loopback `READ ONLY` endpoints `/api/health`, `/api/charts` over Silver (installed in local `.venv`; excluded from Airflow image) |
 
-### Suggested layout (Recommendation — path names not product-locked)
+### As-built layout
 
 ```text
 dags/
-  spotify_weekly.py          # Airflow DAG only (thin wrappers)
-docker/                      # or compose at repo root — Airflow stack (Q11)
-docs/spec/SPEC.md            # v1
-docs/spec/v2/SPEC_V2.md         # this file
-src/spotify_pipeline/        # unchanged package ownership of builders
+  spotify_weekly.py          # Airflow DAG only (thin wrappers + Ops hooks)
+docker/airflow/              # Dockerfile + docker-compose.yml (Airflow 2.9.3, Q11)
+docs/ops/AIRFLOW.md          # Airflow runbook
+docs/spec/SPEC.md            # v1 + medallion/data-model reference
+docs/spec/v2/SPEC_V2.md      # this file
+src/spotify_pipeline/        # package ownership of clients, builders, ops, local Flask API
 ```
 
 ---
@@ -362,10 +377,10 @@ pytest -q
 
 | ID | Question | Status |
 |----|----------|--------|
-| **Q8a** | Exact week-boundary day/formula: Airflow data interval → `chart_date` | **LOCKED 26/11** — Thứ Năm gần nhất trước `data_interval_end` (§8) |
-| **Q7-stage2** | Confirm or override **Mon 09:00 Asia/Bangkok** when enabling schedule | Open until schedule enable |
-| Secret-store product | Still TBD from v1 | Open |
-| Airflow exact version pin | Image/compose pin | **Recommendation** at implement time — not product-locked |
+| **Q8a** | Exact week-boundary day/formula: Airflow data interval → `chart_date` | **LOCKED 26/11** — Thứ Năm gần nhất trước `data_interval_end` (§8); runtime check on first live scheduled run (P5-02) |
+| **Q7-stage2** | Confirm or override **Mon 09:00 Asia/Bangkok** when enabling schedule | **LOCKED & ENABLED 26/11** — `0 9 * * 1` (`Asia/Bangkok`), `catchup=False`, `max_active_runs=1` |
+| Secret-store product | Still TBD from v1 (currently `.env` / container `env_file`) | Open |
+| Airflow exact version pin | Image/compose pin | **As-built:** `apache/airflow:2.9.3-python3.12` in `docker/airflow/Dockerfile` (implementer choice, not product-locked) |
 
 ---
 
@@ -481,6 +496,7 @@ Observability only; **no gate**, the graph stays `bronze >> build_silver >> buil
 | 2026-11-19 | Phase 1: decision record [`DECISION_ORCHESTRATION_V2.md`](DECISION_ORCHESTRATION_V2.md); v1 Assumption #5 rewritten to Airflow lock. |
 | 2026-11-26 | Phase 4 green; Phase 5 schedule on (Mon 09:00 Asia/Bangkok). **Q8a locked** (Thursday before `data_interval_end`). **Catch-up delivery clarified:** `public/v0` is live-only, so ~8 weeks accumulate forward (Q3/Q10 unchanged). Added Backlog section for v2.0-diagram ideas outside v2 scope; split as-built diagram into `music-pipeline-v2.1.drawio` while keeping 19/11 `v2.0` untouched. |
 | 2026-11-26 | **Ops addendum (§19b):** `music.pipeline_runs` + `music.ops_pipeline_health`, best-effort, lineage via `summary`; `dq_results`/DQ gate stay in Backlog. Airflow image installs the app without `flask` (API-only dependency conflicts with Airflow constraints). |
+| 2026-11-27 | Synced `SPEC_V2.md` status/diagrams/Q7-stage2 with Phase 4–5 + Ops §19b + local Flask API; redrew `music-pipeline-v2.1.drawio` so Silver/Gold/Ops/API arrows match as-built behavior (no shortcut arrows to Silver, no active arrows through BACKLOG DQ gate/FastAPI); updated main [`SPEC.md`](../SPEC.md). |
 
 ---
 

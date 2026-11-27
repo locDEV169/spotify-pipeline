@@ -1,13 +1,14 @@
 # Spec: Spotify Charts → Web API → ReccoBeats Pipeline (Demo)
 
-**Status:** Draft for implementation (awaiting tool confirmations marked ⚠️)  
+**Status:** Implemented MVP — Bronze Stage 4 + Silver C10 (`build-silver`) + Gold C11 (`build-gold`) + Orchestration v2 (`spotify_weekly` Airflow Option B, Mon 09:00 `Asia/Bangkok` + Ops §19b) + Local Flask Dashboard API (`spotify_pipeline.api`); C12 `backfill-features`, C13 `analytics/*` (`--report`), and `run --offline` remain open/stub (awaiting tool confirmations marked ⚠️)  
 **Source research:** [Research – Spotify data sources & ReccoBeats pipeline (demo)](https://app.notion.com/p/Research-Spotify-data-sources-ReccoBeats-pipeline-demo-41a88b8696fa81049c9df55c450ae2d2) (16/11/2026, Asia/Bangkok)  
-**Repo:** `spotify-data-pipeline` (greenfield)  
+**Updated:** 2026-11-27 (Asia/Bangkok)  
+**Repo:** `spotify-pipeline` (package `spotify_pipeline`)  
 **Audience:** Learning / portfolio demo — not legal advice, not production SaaS
 
-> **Orchestration v2:** Weekly Airflow DAG `spotify_weekly` (Option B) — [`SPEC_V2.md`](v2/SPEC_V2.md) · decision record [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md) · self-check [`CHECKLIST_SPEC_V2.md`](v2/CHECKLIST_SPEC_V2.md).  
+> **Orchestration v2 (implemented):** Weekly Airflow DAG `spotify_weekly` (Option B: `bronze >> build_silver >> build_gold`, scheduled `0 9 * * 1` Mon 09:00 `Asia/Bangkok`, Q8a = most recent Thursday before `data_interval_end`, best-effort Ops in `music.pipeline_runs` + `music.ops_pipeline_health`) — [`SPEC_V2.md`](v2/SPEC_V2.md) · decision record [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md) · self-check [`CHECKLIST_SPEC_V2.md`](v2/CHECKLIST_SPEC_V2.md) · as-built diagram [`architecture/version_2/music-pipeline-v2.1.drawio`](../../architecture/version_2/music-pipeline-v2.1.drawio).  
 > Where v2 conflicts with this file on **scheduling / Airflow / weekly automation**, **v2 wins**. Medallion builders, SoR, and business rules below remain authoritative unless v2 says otherwise.  
-> Assumption #5 is **locked** to Airflow for the weekly path (2026-11-19); historical “No Airflow” wording is superseded.
+> Assumption #5 is **locked** to Airflow for the weekly path (2026-11-19; schedule enabled 2026-11-26); historical “No Airflow” wording is superseded.
 
 ---
 
@@ -23,7 +24,9 @@ Build a local **batch data pipeline** that:
 
 **Why:** New Spotify apps cannot use Audio Features / Audio Analysis ([Spotify blog 27/11/2024](https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api)). ReccoBeats provides proprietary substitutes ([ToS](https://reccobeats.com/docs/documentation/terms-of-service), [audio-features API](https://reccobeats.com/docs/apis/get-audio-features)).
 
-**Success looks like:** One CLI command ingests a chart window, stores raw + curated tables, produces a short Gold report (movers / mood) with explicit `features_found` coverage stats.
+**Success looks like:**
+- **Weekly automated path (`SPEC_V2`):** Airflow DAG `spotify_weekly` runs one watermark end-to-end (`bronze >> build_silver >> build_gold`), landing raw JSONB + curated Silver tables + Gold views (`features_found` coverage, movers, mood, skip-safe popularity) and logging run state in `music.pipeline_runs`.
+- **Local / dev / repair CLI:** `run` executes the **Bronze-only** cycle (Q5=A), while `build-silver` and `build-gold` run curated layers per watermark from Postgres without live HTTP calls.
 
 ---
 
@@ -48,16 +51,16 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
 2. **MVP chart source:** Charts `public/v0` weekly Global top 50 (unauthenticated) — `streams = NULL`.
 3. **Daily Top 200 + streams (`auth/v0`):** out of MVP until Bearer-user access and ToS acceptance are confirmed ⚠️.
 4. **Storage MVP (locked 18/11/2026, Q-C=1):**
-   - **SoR = Postgres `music.*`** (Supabase): Bronze `raw_*` jsonb + `ingested_at`; Silver/Gold tables/views per DDL (`docs/sql/init/music_schema.sql`).
-   - Local `data/bronze/` = **optional dual-write** JSON envelope only — không thay SoR.
+   - **SoR = Postgres `music.*`** (Supabase): Bronze `raw_*` jsonb + `ingested_at` + `run_id`; Silver/Gold/Ops tables & views per DDL ([`docs/sql/init/music_schema.sql`](../sql/init/music_schema.sql) — 12 objects).
+   - Local `data/bronze/` = **optional dual-write** JSON envelope on CLI runs only (`write_fs=False` inside Airflow `bronze` task) — không thay SoR.
    - Historical note: early draft used FS + SQLite; that is **not** MVP SoR anymore.
-5. **Orchestration (locked 2026-11-19 — Decision Record):**  
-   - **Weekly path:** Airflow DAG **`spotify_weekly`** (Option B: Bronze → Silver → Gold). See [`SPEC_V2.md`](v2/SPEC_V2.md) + [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md).  
-   - **Local/dev:** CLI `run` / `run_bronze` stay **Bronze-only**; stage CLIs `build-silver` / `build-gold` for repair. Soft SQ-11 / GQ-8 **not** implemented in `run.py` (superseded by DAG).  
+5. **Orchestration (locked 2026-11-19; schedule live 2026-11-26 — Decision Record):**  
+   - **Weekly path:** Airflow DAG **`spotify_weekly`** (Option B: `bronze` → `build_silver` → `build_gold`; schedule `0 9 * * 1` Mon 09:00 `Asia/Bangkok`, `catchup=False`, `max_active_runs=1`; Q8a `chart_date` = most recent Thursday before `data_interval_end`). See [`SPEC_V2.md`](v2/SPEC_V2.md) + [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md).  
+   - **Local/dev:** CLI `run` / `run_bronze` stay **Bronze-only** forever under v2 (Q5=A); stage CLIs `build-silver` / `build-gold` for local curation & repair. Soft SQ-11 / GQ-8 **not** implemented in `run.py` (superseded by DAG).  
    - **Out:** Prefect; OS cron as happy path.  
    - *Historical v1 text (superseded):* “CLI (+ optional OS cron); No Airflow/Prefect yet.”
-6. **Secrets:** `.env` locally; never commit. Secret-store product TBD ⚠️.
-7. **BI:** deferred; Gold queries printable via CLI / optional notebook ⚠️.
+6. **Secrets:** `.env` locally (and injected via `env_file` into the Airflow container); never commit. Secret-store product TBD ⚠️.
+7. **BI / Serving:** Public BI dashboard remains deferred ⚠️; Gold summary prints via `build-gold` CLI, and a local loopback Flask API (`spotify_pipeline.api`: `/api/health`, `/api/charts`) serves read-only Silver chart/track/artist data for local dashboard development.
 8. **Spotify app mode (locked 18/11/2026, Q-D=2):** MVP = **single-ID only** — `GET /v1/tracks/{id}` and `GET /v1/artists/{id}`. Batch `?ids=` (≤50) is **deferred** until Client ID probe (checklist F5); not required for Stage 4 / Bronze complete.
 9. **Scope country:** Global first; multi-country later.
 
@@ -65,44 +68,61 @@ They remain **documented fallbacks** (research §2, §4, §6 v1) if Charts `auth
 
 ## Tech Stack
 
-| Layer | Choice (MVP) |
-|-------|----------------|
+| Layer | Choice (MVP / v2 as-built) |
+|-------|----------------------------|
 | Language | Python 3.12+ |
 | HTTP | `httpx` |
 | Config | `pydantic-settings` + `.env` |
-| Storage | Postgres `music.*` (SoR) + optional FS Bronze dual-write |
-| CLI | `typer` or `argparse` |
-| Tests | `pytest` + recorded fixtures (no live network in CI) |
-| Packaging | `uv` or `pip` + `pyproject.toml` |
+| Storage | Postgres `music.*` (Supabase via `pg8000` + `supabase-py`) + optional local FS Bronze dual-write |
+| CLI | `typer` (`python -m spotify_pipeline ...`) |
+| Orchestration (v2) | Apache Airflow 2.9.3 (`docker/airflow/`, isolated from default `pyproject.toml` deps per Q11=A) |
+| Local Dashboard API | `flask` (`>=3.1,<4`) loopback read-only API over Silver (excluded from Airflow image) |
+| Tests | `pytest` offline unit/contract tests (no live network, no running Airflow required) |
+| Packaging | `pip` / `uv` + `pyproject.toml` |
 
 ---
 
 ## Commands
 
 ```bash
-# Setup
+# Setup (local app venv — does NOT install Airflow per Q11=A)
 python -m venv .venv
 source .venv/Scripts/activate   # Windows Git Bash
 pip install -e ".[dev]"
 
-# Run full pipeline for one watermark
+# Bronze-only cycle for one live watermark (Q5=A: does NOT run Silver or Gold)
 python -m spotify_pipeline run \
-  --chart-date 2026-11-12 \
+  --chart-date 2026-11-19 \
   --chart-type weekly_top_songs \
   --country global
 
-# Stages (optional)
-python -m spotify_pipeline ingest-charts ...
-python -m spotify_pipeline enrich-spotify ...
-python -m spotify_pipeline enrich-reccobeats ...
-python -m spotify_pipeline build-silver ...
-python -m spotify_pipeline build-gold ...
-python -m spotify_pipeline backfill-features
+# Curated Medallion builders (DB-only, no HTTP)
+python -m spotify_pipeline build-silver \
+  --chart-date 2026-11-19 \
+  --chart-type weekly_top_songs \
+  --country global
 
-# Offline / fixture mode
-python -m spotify_pipeline run --offline
+python -m spotify_pipeline build-gold \
+  --chart-date 2026-11-19 \
+  --chart-type weekly_top_songs \
+  --country global
 
-# Tests
+# Individual Bronze stages (optional / repair)
+python -m spotify_pipeline ingest-charts --chart-date 2026-11-19 --chart-type weekly_top_songs --country global
+python -m spotify_pipeline enrich-spotify --chart-date 2026-11-19 --chart-type weekly_top_songs --country global
+python -m spotify_pipeline enrich-reccobeats --chart-date 2026-11-19 --chart-type weekly_top_songs --country global
+
+# Weekly full-chain orchestration (Airflow Option B — see docs/ops/AIRFLOW.md)
+docker compose -f docker/airflow/docker-compose.yml up -d --build
+
+# Local read-only Dashboard HTTP API (reads Silver)
+python -m flask --app spotify_pipeline.api run --host 127.0.0.1 --port 5001
+
+# Deferred / stub CLI commands (not implemented yet)
+# python -m spotify_pipeline backfill-features   # C12 stub (out of Airflow DAG)
+# python -m spotify_pipeline run --offline       # D12 stub
+
+# Offline test suite
 pytest -q
 ```
 
@@ -116,144 +136,163 @@ Hybrid layout: keep package `src/spotify_pipeline/` (SPEC), but **tách riêng**
 
 | Layer | Được làm | Không làm |
 |-------|----------|-----------|
-| `clients/` | HTTP I/O tới Charts / Spotify / ReccoBeats; retry 429 | Validate business row; Gold math |
-| `models/` | Pydantic fail-fast sau extract (Optional popularity/genres/…) | Movers / mood / SCD2 |
-| `pipeline/` | Ingest → enrich → bronze → silver → gold → backfill | Format Telegram/report UI |
-| `state/` | Watermark `(chart_date, chart_type, country)` | Gọi API |
-| `analytics/` | Đọc Gold → summary / movers / mood report | Copy logic SQL; gọi lại API |
-| `scripts/` | Smoke-check local (Spotify / ReccoBeats) | Cloud Run / BQ deploy (hoãn) |
+| `clients/` | HTTP I/O tới Charts / Spotify / ReccoBeats; retry 429 (`reccobeats.py`) | Validate business row; Gold math |
+| `models/` | Validation sau extract (Optional popularity/genres/…) | Movers / mood / SCD2 |
+| `pipeline/` | Ingest → enrich → bronze → silver → gold → ops (`pipeline_runs`) → backfill (stub) | Format Telegram/public BI UI |
+| `state/` | Watermark `(chart_date, chart_type, country)` + Q8a `chart_date_before` | Gọi API |
+| `api/` | Loopback Flask HTTP validation + `400/404/503` mapping đọc Silver `dashboard.py` | Ghi DB; chạy pipeline stage; lộ DB URI |
+| `dags/` | Thin Airflow DAG `spotify_weekly` (`bronze >> build_silver >> build_gold`) + Ops hooks | Viết lại SQL transform thay builders |
+| `analytics/` | Đọc Gold → summary / movers / mood CLI report (hiện stub) | Copy logic SQL; gọi lại API |
+| `scripts/` | Smoke-check local, Bronze helpers, idempotent DDL apply | Cloud Run / BQ deploy (hoãn) |
 
-### Tree
+### Tree (as-built)
 
 ```text
-spotify-data-pipeline/
-  docs/
-    SPEC.md
+spotify-pipeline/
   architecture/
-    music-pipeline.png / .drawio / .drawio.zip
+    version_1/                  # v1 diagram (.png / .drawio / .drawio.zip)
+    version_2/                  # v2.0 proposal (19/11) + v2.1 as-built (27/11)
+  dags/
+    spotify_weekly.py           # C17 Airflow DAG (Option B + Ops §19b hooks)
+  docker/airflow/
+    Dockerfile                  # Airflow 2.9.3 + app (--no-deps, without flask)
+    docker-compose.yml          # Local Airflow standalone stack
+  docs/
+    ops/AIRFLOW.md              # Airflow runbook
+    spec/
+      SPEC.md                   # this file (main engineering spec)
+      CHECKLIST_SPEC_GAPS.md    # v1 gap checklist
+      SPOTIFY_AUTH_TEST.md
+      explain/DATA_MODEL_LAYERS.md
+      v2/                       # SPEC_V2.md, DECISION_ORCHESTRATION_V2.md, CHECKLIST_SPEC_V2.md
+    sql/
+      init/music_schema.sql     # 12 objects in schema music (raw_*, Silver, Gold VIEWs, Ops)
+      silver/                   # LEFT JOIN & dashboard read-only SQL templates
+      gold/                     # Gold runtime queries + smoke checks
   src/spotify_pipeline/
     __init__.py
-    cli.py                      # run / backfill / --report / --offline
-    config/                     # .env + settings (batch sizes, paths)
+    __main__.py
+    cli.py                      # run (Bronze-only) / stage CLIs / stubs (backfill, --offline, --report)
+    api/                        # C19 local read-only Flask API (/api/health, /api/charts)
+      __init__.py
+      routes.py
+    config/                     # .env + settings
       __init__.py
       config.py
     db/                         # server-side Supabase / Postgres
       __init__.py
       connection.py             # create_client (URL + service_role)
-      postgres.py               # pg8000 + SUPABASE_DB_URL
-    clients/                    # ← I/O only (tách riêng)
+      postgres.py               # pg8000 + SUPABASE_DB_URL (+ transient retry)
+    clients/                    # ← HTTP I/O only (tách riêng)
       __init__.py
-      http.py                   # shared session, retry / Retry-After
+      http.py                   # stub (Gap G8 open for shared 429)
       charts.py                 # public/v0 (+ stub auth/v0)
       spotify_auth.py           # Client Credentials, token ~1h
-      spotify.py                # tracks/artists via /{id} (MVP); batch deferred
-      reccobeats.py             # GET /v1/audio-features?ids= ≤40
+      spotify.py                # tracks/artists via /{id} (MVP Q-D=2); batch deferred
+      reccobeats.py             # GET /v1/audio-features?ids= ≤40 + 429 Retry-After
     models/                     # ← validate only (tách riêng)
       __init__.py
       chart.py                  # ChartEntry (streams Optional)
-      track.py                  # Track, Artist (deprecated fields Optional)
+      track.py                  # TrackMetadata, ArtistMetadata, TrackArtistLink
       audio_features.py         # AudioFeatures + features_found
-    pipeline/                   # ← orchestration / medallion (tách riêng)
+    pipeline/                   # ← medallion builders & ops (tách riêng)
       __init__.py
       bronze/                   # writers + ingest_charts + extract_ids
-      enrich/                   # spotify + reccobeats
-      silver/                   # build_silver + LEFT JOIN helper
-      gold/                     # readers + sql + build_gold
-      backfill/                 # C12 stub
-      run.py                    # 1 cycle: watermark → … → summary
+      enrich/                   # spotify + reccobeats (write to music.raw_* only)
+      silver/                   # build_silver (W1–W6) + LEFT JOIN + dashboard.py
+      gold/                     # readers + sql + build_gold (G1–G6; scd2=deferred)
+      backfill/                 # C12 stub (out of Airflow DAG)
+      ops.py                    # C18 best-effort music.pipeline_runs writer (no airflow import)
+      run.py                    # C14 Bronze-only cycle: ingest → extract_ids → enrich
     state/                      # ← watermark only (tách riêng)
       __init__.py
-      watermark.py
-    analytics/                  # ← read Gold + present (tách riêng)
+      watermark.py              # Watermark + chart_date_before (Q8a)
+    analytics/                  # ← CLI report stubs (C13)
       __init__.py
       movers.py
       mood.py
       summary.py
   data/
-    bronze/                     # gitignored raw JSON
-    silver/                     # sqlite / curated
-    gold/
-  scripts/                      # local smoke only (cloud scripts deferred)
-    check/                      # check_spotify / check_supabase / …
-    bronze/                     # load_raw_* / clear_raw_*
-    ddl/                        # apply_music_ddl
-    auth/                       # spotify_login
-  tests/
-    fixtures/
-      charts_public_v0_weekly.json
-      tracks_batch.json
-      tracks_single.json
-      artists_batch.json
-      reccobeats_audio_features.json   # 26/40-style
-      reccobeats_batch41_error.json    # status 4004
-    test_http_retry.py
-    test_reccobeats_batch.py
-    test_charts_parse.py
-    test_models.py
-    test_silver_left_join.py
-    test_watermark.py
-    test_analytics_summary.py
+    bronze/                     # gitignored optional CLI raw JSON dual-write
+    silver/                     # placeholder (.gitkeep; SoR is Postgres music.*)
+    gold/                       # placeholder (.gitkeep; SoR is Postgres music.*)
+  scripts/
+    check/                      # check_spotify / check_spotify_user / check_supabase / check_reccobeats
+    bronze/                     # load_raw_* / clear_raw_* smoke helpers
+    ddl/                        # apply_music_ddl.py (idempotent; protects weather_*)
+    auth/                       # spotify_login.py
+  tests/                        # offline pytest suite (models, Bronze, Silver, Gold, Ops, DDL, Flask API)
   .env.example
   .gitignore
   pyproject.toml
   README.md
 ```
 
-**Hoãn (Notion §9 cloud — không đưa vào cây MVP):** `Dockerfile`, Cloud Run, GCS/BigQuery load, `staging/` NDJSON primary, Telegram alert, rename repo → `spotify-chart-elt/`.
+**Hoãn (Notion §9 cloud / SPEC_V2 §19a backlog — không đưa vào MVP):** Cloud Run, GCS/BigQuery load, dbt rewrite, DQ gate task, schema split `music_raw/silver/gold`, FastAPI/public BI, Telegram/Slack alert. (Note: `docker/airflow/Dockerfile` exists strictly for local Airflow orchestration per Q11=A.)
 
 ---
 
-## Architecture (pipeline v2)
-
-Primary diagram (locked stack §8 / former Notion `music-pipeline-v2`):
+## Architecture (Medallion + Orchestration v2)
 
 | File | Meaning |
 |------|---------|
-| [`architecture/version_1/music-pipeline.png`](../architecture/version_1/music-pipeline.png) | Pipeline diagram |
-| [`architecture/version_1/music-pipeline.drawio`](../architecture/version_1/music-pipeline.drawio) | Editable draw.io source |
-| [`architecture/version_1/music-pipeline.drawio.zip`](../architecture/version_1/music-pipeline.drawio.zip) | Zipped source (Notion export) |
+| [`architecture/version_2/music-pipeline-v2.1.drawio`](../../architecture/version_2/music-pipeline-v2.1.drawio) | **Primary as-built diagram (v2.1, 27/11/2026)** — Option B Airflow + Medallion + Ops §19b + Flask API + `BACKLOG` separated |
+| [`architecture/version_2/music-pipeline-v2.0.drawio`](../../architecture/version_2/music-pipeline-v2.0.drawio) | 19/11 v2.0 broad proposal (includes §19a backlog ideas; kept as historical reference) |
+| [`architecture/version_1/music-pipeline.png`](../../architecture/version_1/music-pipeline.png) | Historical v1 diagram export (16/11/2026) |
+| [`architecture/version_1/music-pipeline.drawio`](../../architecture/version_1/music-pipeline.drawio) | Historical v1 editable draw.io source |
+| [`architecture/version_1/music-pipeline.drawio.zip`](../../architecture/version_1/music-pipeline.drawio.zip) | Zipped v1 source (Notion export) |
 
 ```mermaid
 flowchart LR
-  PUB["Charts public/v0\nweekly Global top50\ntrackUri, no streams"]
-  AUTH["Charts auth/v0 daily\nTop200 + streams\n⚠️ confirm"]
-  ORCH["Scheduler / CLI\nwatermark =\nchart_date + chart_type + country"]
-  SEC["Secrets\nSpotify Client ID/Secret"]
-  BR["Bronze\nraw Charts / Web API / ReccoBeats JSON\ningested_at"]
-  EX["Extract Spotify track/artist IDs"]
-  SP["Spotify Web API\nClient Credentials\nNO audio-features"]
-  RB["ReccoBeats\nGET /v1/audio-features?ids=\nbatch ≤ 40\nretry 429"]
-  FACT["fact_chart"]
-  DIMT["dim_track\n+ features_found"]
-  DIMA["dim_artist"]
-  JOIN["LEFT JOIN"]
-  GOLD["Gold\nmovers, SCD2, mood"]
-  BI["BI ⚠️ TBD"]
+  PUB["Charts public/v0\nweekly Global top50\ntrackUri, streams=NULL"]
+  AUTH["Charts auth/v0 daily\nTop200 + streams\n⚠️ out of MVP"]
+  ORCH["Airflow DAG spotify_weekly\nbronze >> build_silver >> build_gold\n(+ CLI stage tools)"]
+  SEC["Secrets (.env)\nSpotify + Supabase"]
+  RAWC["Bronze music.raw_charts\ningested_at + run_id"]
+  EX["extract_ids\n(from raw_charts once)"]
+  SP["Spotify Web API\nsingle /{id} (Q-D=2)\nNO audio-features"]
+  RB["ReccoBeats\nGET /v1/audio-features?ids= ≤40\n429 + Retry-After"]
+  RAWSP["Bronze music.raw_spotify\n+ music.raw_reccobeats"]
+  SLVB["build_silver (DB-only)\nreads latest music.raw_*"]
+  SLV["Silver music.*\nfact_chart + dim_track +\ndim_artist + bridge_track_artist\n(LEFT JOIN)"]
+  GLDV["Gold music.gold_*\ngold_feature_coverage\ngold_movers\ngold_mood_segments"]
+  GLDB["build_gold (DB-only)\ncoverage + movers + mood +\npopularity skip-safe\n(SCD2 deferred)"]
+  OPS["Ops §19b (best-effort)\nmusic.pipeline_runs +\nmusic.ops_pipeline_health"]
+  FLASK["Local Flask API\n/api/health, /api/charts\n(READ ONLY Silver)"]
+  C12["C12 backfill-features\n(out of DAG · stub)"]
+  BI["Public BI ⚠️ BACKLOG"]
 
   PUB --> ORCH
   AUTH -.-> ORCH
-  ORCH --> BR
+  ORCH --> RAWC
+  RAWC --> EX
   SEC -.-> SP
-  BR --> EX
   EX --> SP
   EX --> RB
-  EX --> FACT
-  SP --> DIMT
-  SP --> DIMA
-  RB --> DIMT
-  SP --> BR
-  RB --> BR
-  FACT --> JOIN
-  DIMT --> JOIN
-  DIMA --> JOIN
-  JOIN --> GOLD
-  GOLD --> BI
-  DIMT -.->|"features_found=false"| RB
+  SP --> RAWSP
+  RB --> RAWSP
+  RAWC --> SLVB
+  RAWSP --> SLVB
+  ORCH --> SLVB
+  SLVB --> SLV
+  SLV --> GLDV
+  ORCH --> GLDB
+  GLDV --> GLDB
+  ORCH -.-> OPS
+  GLDV -.-> OPS
+  SLV --> FLASK
+  SLV -.->|"features_found=false"| C12
+  GLDV -.-> BI
 ```
 
-**Watermark:** `(chart_date, chart_type, country)` — one pipeline run = one watermark.
+**Watermark:** `(chart_date, chart_type, country)` — one pipeline run = one watermark. On scheduled Airflow runs (`0 9 * * 1` Mon 09:00 `Asia/Bangkok`), `chart_date` = most recent Thursday before `data_interval_end` (Q8a locked 26/11).
 
-**Stage 4 fidelity (18/11/2026):** `EX` reads IDs from Bronze `music.raw_charts` (not live Charts re-fetch on happy path). `run` performs **logical fan-out**: extract once → enrich-spotify → enrich-reccobeats (sequential in-process; same ID set). **Silver C10 (18/11):** `build-silver` one-pass upserts `fact_chart` + dims + bridge + `features_found` from Bronze only (LEFT JOIN semantics). **`run` stays Bronze-only** — soft SQ-11 / GQ-8 superseded by Airflow DAG wiring ([`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md)). See [`CHECKLIST_SPEC_GAPS.md`](CHECKLIST_SPEC_GAPS.md).
+**Medallion & orchestration fidelity (as-built):**
+- **Bronze (`run_bronze`):** `ingest_charts` verifies `chart_date == live week` and writes `music.raw_charts`; `extract_ids` reads `music.raw_charts` once (not live Charts re-fetch); `enrich_spotify` and `enrich_reccobeats` write raw JSONB **only** into `music.raw_spotify` and `music.raw_reccobeats` (never directly into Silver).
+- **Silver (`build_silver`, DB-only):** one-pass upserts `fact_chart` + `dim_track` + `dim_artist` + `bridge_track_artist` + `features_found` from **latest** Bronze `music.raw_*` only (LEFT JOIN + `COALESCE` semantics).
+- **Gold (`build_gold`, DB-only):** queries the 3 Gold `VIEW`s (`gold_feature_coverage`, `gold_movers`, `gold_mood_segments`) + missing top-N + null-safe popularity check (`SCD2_STATUS="deferred"`). No DQ gate sits between Silver and Gold.
+- **Ops (`SPEC_V2 §19b`):** best-effort DAG telemetry in `music.pipeline_runs` + health view `music.ops_pipeline_health` (no gate, never fails tasks).
+- **CLI boundary (Q5=A):** **`run` stays Bronze-only** — soft SQ-11 / GQ-8 superseded by Airflow DAG wiring ([`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md)).
 
 ---
 
@@ -261,23 +300,25 @@ flowchart LR
 
 | # | Component | Path (tách riêng) | Responsibility | Depends on |
 |---|-----------|-------------------|----------------|------------|
-| C1 | Config / secrets | `config/` | Load Spotify creds, paths, batch sizes | — |
-| C2 | HTTP retry | `clients/http.py` | Shared session; 429 + Retry-After | C1 |
-| C3 | Charts client | `clients/charts.py` | Fetch `public/v0`; parse `trackUri`, ranks | C2 |
-| C4 | Spotify auth/client | `clients/spotify_auth.py`, `spotify.py` | Token ~1h; tracks/artists via `/{id}` (MVP); batch `?ids=` deferred (Q-D=2) | C2 |
-| C5 | ReccoBeats client | `clients/reccobeats.py` | Batch ≤40 `?ids=`; map IDs; 429 | C2 |
-| C6 | Models | `models/*` | Validate ChartEntry / Track / Artist / AudioFeatures | — |
-| C7 | Watermark | `state/watermark.py` | `(chart_date, chart_type, country)` | C1 |
-| C8 | Bronze writer | `pipeline/bronze/` | Persist raw JSON + `ingested_at` | C3–C5 |
-| C9 | Ingest / enrich | `pipeline/bronze/ingest_*.py`, `pipeline/enrich/` | Charts → validate → Bronze; Spotify/RB enrich | C3–C6, C8 |
-| C10 | Silver builder | `pipeline/silver/` | `fact_chart` + dims; **LEFT JOIN only** | C8, C9 |
-| C11 | Gold builder | `pipeline/gold/` | Movers, SCD2 (nice), mood (`features_found=true`) | C10 |
-| C12 | Backfill | `pipeline/backfill/` | Re-query ReccoBeats where `features_found=false` | C5, C10 |
-| C13 | Analytics | `analytics/*` | Đọc Gold → report (`--report`); không gọi API | C11 |
-| C14 | CLI / run | `cli.py`, `pipeline/run.py` | Bronze-only cycle + exit codes; weekly orch → Airflow C17 ([`SPEC_V2.md`](v2/SPEC_V2.md)) | all |
-| C17 | Airflow DAG | `dags/spotify_weekly` (planned) | Weekly Bronze→Silver→Gold; retries; week catch-up | C8–C11, C14 |
-| C15 | Fixtures / offline | `tests/fixtures/` | E2E 26/40 + batch41; `run --offline` | C5–C13 |
-| C16 | Tests | `tests/` | Retry, batching, LEFT JOIN, models, watermark | C2–C13 |
+| C1 | Config / secrets | `config/` | Load Spotify & Supabase creds, paths, batch sizes | — |
+| C2 | HTTP retry | `clients/http.py` | Shared session; 429 + Retry-After (**currently stub — Gap G8**; 429 retry implemented in `reccobeats.py`) | C1 |
+| C3 | Charts client | `clients/charts.py` | Fetch `public/v0`; parse `trackUri`, ranks, live date check | C1 |
+| C4 | Spotify auth/client | `clients/spotify_auth.py`, `spotify.py` | Token ~1h; tracks/artists via `/{id}` (MVP Q-D=2); batch `?ids=` deferred | C1 |
+| C5 | ReccoBeats client | `clients/reccobeats.py` | Batch ≤40 `?ids=`; map IDs via `href`; 429 + `Retry-After` | C1 |
+| C6 | Models | `models/*` | Validate ChartEntry / TrackMetadata / ArtistMetadata / AudioFeatures | — |
+| C7 | Watermark | `state/watermark.py` | `(chart_date, chart_type, country)` + `chart_date_before` (Q8a) | C1 |
+| C8 | Bronze writer | `pipeline/bronze/writers.py` | Persist raw JSONB to `music.raw_*` (+ optional CLI FS dual-write) | C3–C5 |
+| C9 | Ingest / enrich | `pipeline/bronze/`, `pipeline/enrich/` | Charts → Bronze; extract IDs from Bronze → Spotify/RB enrich → Bronze | C3–C6, C8 |
+| C10 | Silver builder | `pipeline/silver/` | `build_silver` (`fact_chart` + dims + `bridge_track_artist` + `features_found`; **LEFT JOIN only**) | C8, C9 |
+| C11 | Gold builder | `pipeline/gold/` | `build_gold` (coverage, missing top-N, movers, mood `features_found=true`, popularity skip-safe; formal SCD2 deferred) | C10 |
+| C12 | Backfill | `pipeline/backfill/` | Re-query ReccoBeats where `features_found=false` (**stub; out of `spotify_weekly` DAG**) | C5, C10 |
+| C13 | Analytics | `analytics/*` | Đọc Gold → CLI `--report` (**stub**; `build-gold` prints summary directly) | C11 |
+| C14 | CLI / run | `cli.py`, `pipeline/run.py` | Bronze-only `run` + stage CLIs + exit codes; weekly orch → C17 ([`SPEC_V2.md`](v2/SPEC_V2.md)) | C1–C11 |
+| C15 | Fixtures / offline | `tests/fixtures/` | Offline test payloads; `run --offline` CLI path still **stub** (D12) | C5–C11 |
+| C16 | Tests | `tests/` | Offline `pytest` suite (133 tests: models, Bronze, Silver, Gold, Ops, DDL, Flask API) | C1–C19 |
+| C17 | Airflow DAG | `dags/spotify_weekly.py` | **Implemented:** weekly `bronze >> build_silver >> build_gold`, Mon 09:00 `Asia/Bangkok`, retries, Q8a | C7–C11, C14, C18 |
+| C18 | Ops observability | `pipeline/ops.py` + `music_schema.sql` | **Implemented (§19b):** best-effort `music.pipeline_runs` + `music.ops_pipeline_health` (DAG-only; no gate) | C7, C10, C11 |
+| C19 | Local Dashboard API | `api/` + `pipeline/silver/dashboard.py` | **Implemented:** loopback Flask `READ ONLY` `/api/health` & `/api/charts` over Silver | C10 |
 
 ---
 
@@ -297,45 +338,58 @@ flowchart LR
 
 ---
 
-## Data model (Silver)
+## Data model (Silver + Gold + Ops — schema `music`, 12 objects)
 
-### `fact_chart`
+Authoritative DDL: [`docs/sql/init/music_schema.sql`](../sql/init/music_schema.sql) (3 Bronze `raw_*` tables + 4 Silver tables + 3 Gold `VIEW`s + 2 Ops objects).
+
+### `music.fact_chart`
 | Column | Source | Notes |
 |--------|--------|-------|
 | `chart_date` | Charts | Part of watermark |
 | `chart_type` | Charts | e.g. `weekly_top_songs` |
 | `country` | Charts | e.g. `global` |
 | `track_id` | Charts `trackUri` | Spotify Base-62 |
-| `rank` | `currentRank` | |
-| `prev_rank` | `previousRank` | |
+| `rank` | `currentRank` | `CHECK (rank >= 1)` |
+| `prev_rank` | `previousRank` | Nullable (`CHECK (prev_rank IS NULL OR prev_rank >= 1)`) |
 | `streams` | `auth/v0` only | NULL on `public/v0` |
-| `entry_status` | Charts | optional |
-| `ingested_at` | Pipeline | |
+| `entry_status` | Charts | Optional |
+| `peak_rank`, `appearances_on_chart` | Charts | Nullable (live `public/v0` often `0`/empty) |
+| `run_id`, `source`, `ingested_at` | Pipeline | Lineage (`charts_public_v0`) |
 
 **PK / uniqueness:** `(chart_date, chart_type, country, track_id)`
 
-### `dim_track`
+### `music.dim_track`
 | Column | Source | Notes |
 |--------|--------|-------|
 | `track_id` | Spotify / Charts | PK |
 | `track_name`, `duration_ms`, `explicit` | Web API track | |
 | `album_id`, `album_name`, `release_date`, `release_date_precision` | `track.album` | No separate `/albums` required for MVP |
-| `isrc` | `external_ids.isrc` | Available per Mar 2026 revert |
-| `track_popularity` | Web API | Nullable / deprecated |
-| `reccobeats_uuid`, `href` | ReccoBeats | |
-| Audio feature columns | ReccoBeats | acousticness … valence |
-| `features_found` | Pipeline | bool |
-| `features_fetched_at` | Pipeline | |
-| `source_features` | const `reccobeats` | |
+| `isrc` | `external_ids.isrc` | Available per Mar 2026 revert (`COALESCE` on upsert) |
+| `track_popularity` | Web API | Nullable / removed on Dev Mode |
+| `reccobeats_uuid`, `href` | ReccoBeats | Preserved via `COALESCE` |
+| Audio feature columns (11) | ReccoBeats | `acousticness` … `valence`, `loudness`, `tempo`, `key`, `mode` |
+| `features_found` | Pipeline | `boolean NOT NULL DEFAULT false` |
+| `features_fetched_at` | Pipeline | `timestamptz` |
+| `source_features` | Pipeline | `'reccobeats'` |
+| `run_id`, `source`, `updated_at` | Pipeline | Latest Silver writer run metadata |
 
-### `dim_artist`
-| Column | Source | Notes |
-|--------|--------|-------|
-| `artist_id` | Web API | PK |
-| `artist_name` | Web API | |
-| `genres` | `artist.genres` | Deprecated; may be empty |
-| `followers` | `followers.total` | May be absent on new Dev Mode |
-| `artist_popularity` | Web API | May be absent on new Dev Mode |
+### `music.dim_artist` & `music.bridge_track_artist`
+| Object / Column | Source | Notes |
+|-----------------|--------|-------|
+| `dim_artist.artist_id` | Web API | PK |
+| `dim_artist.artist_name` | Web API / `track.artists` fallback | |
+| `dim_artist.genres`, `followers`, `artist_popularity` | Web API | Nullable / deprecated on Dev Mode |
+| `dim_artist.run_id`, `source`, `updated_at` | Pipeline | Lineage (`spotify_web_api`) |
+| `bridge_track_artist (track_id, artist_id)` | `track.artists[]` | Composite PK + `artist_position` (0-based order) |
+
+### Gold `VIEW`s & Ops objects
+| Object | Type | Purpose |
+|--------|------|---------|
+| `music.gold_feature_coverage` | `VIEW` | `fact_chart LEFT JOIN dim_track`: `chart_rows`, `features_found_rows`, `features_found_pct` per watermark |
+| `music.gold_movers` | `VIEW` | `LEFT JOIN` where `prev_rank IS NOT NULL`: `rank_delta = prev_rank - rank`, `streams` |
+| `music.gold_mood_segments` | `VIEW` | `INNER JOIN dim_track WHERE features_found IS TRUE` (Python assigns `0.5` energy×valence labels) |
+| `music.pipeline_runs` | `TABLE` | **SPEC_V2 §19b:** PK `(dag_id, dag_run_id)`, `status`, `current_task`, redacted `error_message`, `summary jsonb` |
+| `music.ops_pipeline_health` | `VIEW` | **SPEC_V2 §19b:** per-watermark `bronze_payloads`, `bronze_runs`, `features_found_pct`, `silver_stale`, `bronze_age` |
 
 ---
 
@@ -451,26 +505,26 @@ CI: offline tests only.
 
 ## Success Criteria
 
-- [ ] `run --offline` completes Bronze→Silver→Gold using fixtures.
-- [ ] Live `run` for one weekly Global watermark stores chart rows for **all** returned ranks.
-- [ ] ReccoBeats enrichment never exceeds 40 IDs/request.
-- [ ] Missing ReccoBeats tracks yield `features_found=false` without dropping `fact_chart` rows.
-- [ ] No Spotify audio-features calls in codebase.
-- [ ] Deprecated Spotify fields nullable; Gold still runs.
-- [ ] README states ReccoBeats AS-IS risk, Charts unofficial/`public/v0` risk, and learning-only scope.
-- [ ] `.env.example` documents `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`; no secrets committed.
-- [ ] Pytest offline suite green.
+- [ ] `run --offline` completes using fixtures *(CLI `--offline` still stub — D12; weekly full chain Bronze→Silver→Gold is verified live via Airflow DAG `spotify_weekly` per [`SPEC_V2.md`](v2/SPEC_V2.md))*.
+- [x] Live `run` (and DAG `spotify_weekly`) for one weekly Global watermark stores chart rows for **all** returned ranks (50/50 verified on `2026-11-12` and `2026-11-19`).
+- [x] ReccoBeats enrichment never exceeds 40 IDs/request.
+- [x] Missing ReccoBeats tracks yield `features_found=false` without dropping `fact_chart` rows.
+- [x] No Spotify audio-features calls in codebase.
+- [x] Deprecated Spotify fields nullable; Gold still runs (`popularity_skipped=true` when null).
+- [x] README states ReccoBeats AS-IS risk, Charts unofficial/`public/v0` risk, and learning-only scope.
+- [x] `.env.example` documents `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`; no secrets committed.
+- [x] Pytest offline suite green (`pytest -q`).
 
 ---
 
 ## Open Questions (blocking / high impact)
 
 1. Spotify Client ID mode: Extended Quota vs Dev Mode? → batch vs `/{id}`. **Closed for MVP (18/11/2026, Q-D=2):** single `/{id}` only. Batch `?ids=` deferred until checklist F5 probe; not blocking Bronze Stage 4.
-2. On that Client ID, are `track.popularity`, `artist.genres`, `followers`, `artist.popularity` still returned? → **Answered for current Dev Mode app (field notes 17/11/2026):** absent / always null on this Client ID; Gold popularity scatter **not feasible** here. Other quota modes still ⚠️.
-3. Accept Charts `auth/v0` daily (Bearer user) for streams despite ToS risk, or stay weekly `public/v0` + `streams=NULL`?
+2. On that Client ID, are `track.popularity`, `artist.genres`, `followers`, `artist.popularity` still returned? → **Answered for current Dev Mode app (field notes 17/11/2026):** absent / always null on this Client ID; Gold popularity scatter **not feasible** here (`build_gold` skips safely). Other quota modes still ⚠️.
+3. Accept Charts `auth/v0` daily (Bearer user) for streams despite ToS risk, or stay weekly `public/v0` + `streams=NULL`? *(Current MVP stays on weekly `public/v0`.)*
 4. If no `auth/v0`: stay weekly-only, or revive kworb fallback?
-5. Scheduler / secret store / object store / BI product choices.
-6. Measured rate-limit thresholds (ReccoBeats + Spotify) — unknown; implement defensive retries.
+5. Scheduler / secret store / object store / BI product choices → **Scheduler closed (19/11 & 26/11):** Apache Airflow `spotify_weekly` (Docker Compose, Mon 09:00 `Asia/Bangkok`). Secret store, Supabase Storage bucket, and public BI product remain open/deferred.
+6. Measured rate-limit thresholds (ReccoBeats + Spotify) — unknown; ReccoBeats 429 retry implemented, shared Spotify/Charts 429 retry open (**Gap G8**).
 7. Does the Spotify app owner have Premium (required for current Dev Mode)?
 
 ---
@@ -505,6 +559,8 @@ CI: offline tests only.
 | 2026-11-19 | **Gold C11 MVP (G1–G6):** `build_gold` / CLI `build-gold` — coverage + missing top-N · movers · mood (0.5 quadrants Assumption) · popularity skip-safe (Open Q2) · **GQ-5 Answer: defer formal SCD2**. Soft GQ-8: `run` still Bronze-only. Checklist §E. |
 | 2026-11-19 | **Orchestration v2 SPEC:** [`SPEC_V2.md`](v2/SPEC_V2.md) — Airflow DAG `spotify_weekly` Option B + Phase 0 locks. Assumption #5 “No Airflow” **superseded for weekly path**. Soft SQ-11/GQ-8 superseded by DAG. Q8a week-boundary still OPEN. |
 | 2026-11-19 | **Phase 1 docs:** Assumption #5 rewritten to Airflow lock; decision record [`DECISION_ORCHESTRATION_V2.md`](v2/DECISION_ORCHESTRATION_V2.md); C14/C17 + Stage 4 fidelity note updated. |
+| 2026-11-26 | **Orchestration v2 live + Ops §19b + Local Flask API:** Airflow DAG `spotify_weekly` (`bronze >> build_silver >> build_gold`) green on `2026-11-19`; Phase 5 schedule enabled (`0 9 * * 1` Mon 09:00 `Asia/Bangkok`, `catchup=False`, `max_active_runs=1`); **Q8a locked** (most recent Thursday before `data_interval_end`). Added `music.pipeline_runs` + `music.ops_pipeline_health` (`pipeline/ops.py`, 12 objects in schema `music`) and local read-only Flask Dashboard API (`spotify_pipeline.api`: `/api/health`, `/api/charts` over Silver). |
+| 2026-11-27 | **Spec & Architecture sync:** Updated main `SPEC.md` (status, commands, repo tree, Medallion/Airflow Mermaid, C17–C19 components, 12-object data model, relative paths, success criteria) and redrew [`architecture/version_2/music-pipeline-v2.1.drawio`](../../architecture/version_2/music-pipeline-v2.1.drawio) to match `SPEC_V2` as-built logic. |
 
 ---
 
@@ -884,8 +940,8 @@ CREATE INDEX IF NOT EXISTS idx_bridge_track_artist_artist_id ON music.bridge_tra
 
 | File | Vai trò |
 |------|---------|
-| [`docs/sql/init/music_schema.sql`](sql/init/music_schema.sql) | DDL đầy đủ: `CREATE SCHEMA music` + tables/indexes/views `music.*` (+ `run_id`/`source`, `peak_rank` nullable, `spotify_track_ids`, Gold views) |
-| [`scripts/ddl/apply_music_ddl.py`](../scripts/ddl/apply_music_ddl.py) | Chạy SQL qua `SUPABASE_DB_URL` (`pg8000`); abort nếu SQL đụng weather |
+| [`docs/sql/init/music_schema.sql`](../sql/init/music_schema.sql) | DDL đầy đủ: `CREATE SCHEMA music` + tables/indexes/views `music.*` (+ `run_id`/`source`, `peak_rank` nullable, `spotify_track_ids`, Gold views, và từ 26/11 thêm Ops `pipeline_runs` + `ops_pipeline_health`) |
+| [`scripts/ddl/apply_music_ddl.py`](../../scripts/ddl/apply_music_ddl.py) | Chạy SQL qua `SUPABASE_DB_URL` (`pg8000`); abort nếu SQL đụng weather |
 
 ```bash
 # 1) Thêm SUPABASE_DB_URL vào .env (Dashboard → Database → Connect → URI)
@@ -894,6 +950,6 @@ python scripts/ddl/apply_music_ddl.py
 # hoặc paste docs/sql/init/music_schema.sql vào Dashboard → SQL Editor → Run
 ```
 
-**Trạng thái (17/11/2026):** `python scripts/ddl/apply_music_ddl.py` đã **exit 0** — schema `music` có 10 objects (`raw_charts`, `raw_spotify`, `raw_reccobeats`, `fact_chart`, `dim_track`, `dim_artist`, `bridge_track_artist`, `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`). Weather `public` vẫn còn đủ 3 bảng. Idempotent: chạy lại script an toàn (`IF NOT EXISTS`). **Không** Notion. Rotate `service_role` vẫn do user trên Dashboard nếu key từng lộ.
+**Trạng thái (17/11/2026, cập nhật 26/11/2026):** `python scripts/ddl/apply_music_ddl.py` đã **exit 0** — schema `music` hiện có **12 objects** (`raw_charts`, `raw_spotify`, `raw_reccobeats`, `fact_chart`, `dim_track`, `dim_artist`, `bridge_track_artist`, `gold_feature_coverage`, `gold_movers`, `gold_mood_segments`, cộng thêm 26/11 theo `SPEC_V2 §19b`: `pipeline_runs`, `ops_pipeline_health`; kết nối Postgres thực tế trong repo dùng `pg8000`). Weather `public` vẫn còn đủ 3 bảng. Idempotent: chạy lại script an toàn (`IF NOT EXISTS` / `CREATE OR REPLACE VIEW`). **Không** Notion. Rotate `service_role` vẫn do user trên Dashboard nếu key từng lộ.
 
 > PostgREST/supabase-py: nếu query `music.*` qua API client, thêm schema `music` vào **Exposed schemas** trong Dashboard API settings.
