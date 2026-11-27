@@ -1,6 +1,6 @@
 # Checklist: SPEC v2 Self-Verification (Airflow Option B)
 
-**Spec:** [`SPEC_V2.md`](SPEC_V2.md) · **v1 (builders):** [`SPEC.md`](SPEC.md) · **Architecture:** [`architecture/version_2/`](../../architecture/version_2/)  
+**Spec:** [`SPEC_V2.md`](SPEC_V2.md) · **v1 (builders):** [`SPEC.md`](../SPEC.md) · **Architecture:** [`architecture/version_2/`](../../../architecture/version_2/)  
 **Audience:** Chubby tự implement + tự tick  
 **Status:** Phase 0 locks frozen — do not reopen Q1–Q11  
 **LOCKED 26/11:** **Q8a** = Thứ Năm gần nhất trước `data_interval_end` (SPEC §8). Trước khi code P5-02 cần verify công thức đó trên Airflow  
@@ -21,10 +21,16 @@ Làm sai một dòng dưới đây = fail SPEC v2 dù DAG “chạy được”.
   - **Verify:** `rg -n "build_silver|build_gold" src/spotify_pipeline/pipeline/run.py` → 0 matches (Q5=A)  
 - [ ] **ANTI-SQL-ORCH:** Không rewrite Silver/Gold thành Airflow SQL operators thay builders  
   - **Verify:** curated tasks import/call `build_silver` / `build_gold` (hoặc CLI tương đương), không `SQLExecuteQueryOperator` thay thế medallion  
-- [ ] **ANTI-Q8a:** Không hard-code weekday “đoán” cho scheduled `chart_date` khi Q8a còn OPEN  
-  - **Verify:** scheduled mapping hoặc còn TODO/OPEN, hoặc chỉ dùng **explicit DAG params** `chart_date` (AC-V2-8)  
+- [ ] **ANTI-Q8a:** Scheduled `chart_date` chỉ theo công thức Q8a đã khóa (Thứ Năm trước `data_interval_end`); không weekday nào khác được hard-code  
+  - **Verify:** `rg -n "chart_date_before" dags/ src/` — mapping chỉ ở một nơi; manual dùng **explicit DAG params** `chart_date` (AC-V2-8)  
 - [ ] **ANTI-CI-AIRFLOW:** Default CI / `pytest` không yêu cầu Airflow container đang chạy  
   - **Verify:** `pytest -q` trên máy app env (không `docker compose` Airflow) vẫn chạy được suite mặc định  
+- [ ] **ANTI-OPS-GATE:** Ops ([SPEC §19b](SPEC_V2.md)) chỉ quan sát: không task mới, không `soft_fail` / `trigger_rule`, ghi Ops lỗi không làm fail task  
+  - **Verify:** `rg -n "soft_fail|trigger_rule" dags/` → 0 matches; `pytest tests/test_pipeline_ops.py` (test "write failure never raises")  
+- [x] **OPS-01** `music.pipeline_runs` + `music.ops_pipeline_health` có trong `music_schema.sql`, apply idempotent  
+  - **Verify:** `pytest tests/test_apply_music_ddl.py`; `SELECT * FROM music.ops_pipeline_health`  
+- [x] **OPS-02** Run DAG thật → đúng 1 row `pipeline_runs` (`success`, `summary` có `bronze`/`build_silver`/`build_gold`)  
+  - **Evidence (26/11):** manual run `ops_live_ok` (chart_date 2026-11-19) → 1 row, status=success  
 
 ---
 
@@ -57,21 +63,22 @@ Tick khi implementation **khớp** lock (không “gần đúng”).
 ### Checks
 
 - [x] **P1-01** File [`SPEC_V2.md`](SPEC_V2.md) exists and describes Option B + Q1–Q11  
-  - **Verify:** `test -f docs/spec/SPEC_V2.md`  
+  - **Verify:** `test -f docs/spec/v2/SPEC_V2.md`  
 - [x] **P1-02** v1 pointer: `SPEC.md` mentions orchestration v2 / `SPEC_V2.md`  
   - **Verify:** `rg -n "SPEC_V2" docs/spec/SPEC.md`  
 - [x] **P1-03** README points to SPEC v2 for Airflow weekly path  
   - **Verify:** `rg -n "SPEC_V2|spotify_weekly|Airflow" README.md`  
 - [x] **P1-04** Architecture v2 assets linked/usable  
   - **Verify:**  
-    `architecture/version_2/music-pipeline-v2.0.png`  
-    `architecture/version_2/music-pipeline-v2.0.drawio`  
+    `architecture/version_2/music-pipeline-v2.0.png` (19/11 proposal)  
+    `architecture/version_2/music-pipeline-v2.0.drawio` (19/11 proposal)  
+    `architecture/version_2/music-pipeline-v2.1.drawio` (26/11 as-built + BACKLOG)  
 - [x] **P1-05** Q8a documented as **OPEN** (no invented weekday)  
-  - **Verify:** `rg -n "Q8a" docs/spec/SPEC_V2.md` shows OPEN  
+  - **Verify:** `rg -n "Q8a" docs/spec/v2/SPEC_V2.md` shows OPEN  
 - [x] **P1-06** Self-check checklist exists (this file)  
-  - **Verify:** `test -f docs/spec/CHECKLIST_SPEC_V2.md`  
+  - **Verify:** `test -f docs/spec/v2/CHECKLIST_SPEC_V2.md`  
 - [x] **P1-07** Decision record landed; Assumption #5 rewritten to Airflow lock  
-  - **Verify:** `test -f docs/spec/DECISION_ORCHESTRATION_V2.md`  
+  - **Verify:** `test -f docs/spec/v2/DECISION_ORCHESTRATION_V2.md`  
   - **Verify:** `rg -n "Orchestration \\(locked 2026-11-19" docs/spec/SPEC.md`  
 
 ### Phase 1 DoD / AC

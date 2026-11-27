@@ -158,3 +158,68 @@ SELECT
 FROM music.fact_chart AS f
 INNER JOIN music.dim_track AS t ON t.track_id = f.track_id
 WHERE t.features_found IS TRUE;
+
+-- ===== Ops (SPEC_V2 §19a addendum) =====
+-- One row per Airflow dag_run, written best-effort by the DAG task wrappers
+-- (pipeline/ops.py). status: running -> success | failed; Clear re-opens it.
+-- summary = {task: result} for bronze / build_silver / build_gold.
+CREATE TABLE IF NOT EXISTS music.pipeline_runs (
+    dag_id         text NOT NULL,
+    dag_run_id     text NOT NULL,
+    chart_date     date,
+    chart_type     text,
+    country        text,
+    status         text NOT NULL CHECK (status IN ('running', 'success', 'failed')),
+    current_task   text,
+    started_at     timestamptz NOT NULL DEFAULT now(),
+    finished_at    timestamptz,
+    updated_at     timestamptz NOT NULL DEFAULT now(),
+    error_task     text,
+    error_message  text,
+    summary        jsonb NOT NULL DEFAULT '{}'::jsonb,
+    PRIMARY KEY (dag_id, dag_run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_watermark
+    ON music.pipeline_runs (chart_date, chart_type, country);
+
+-- Per-watermark health view, derived from existing tables only (no writer).
+-- bronze_runs > 1 means Bronze was re-run (Q9=B append); silver_stale = Silver
+-- has not been rebuilt since the latest Bronze payload.
+CREATE OR REPLACE VIEW music.ops_pipeline_health AS
+WITH bronze AS (
+    SELECT
+        chart_date,
+        chart_type,
+        country,
+        count(*) AS bronze_payloads,
+        count(DISTINCT run_id) AS bronze_runs,
+        max(ingested_at) AS last_bronze_at
+    FROM music.raw_charts
+    GROUP BY chart_date, chart_type, country
+),
+silver AS (
+    SELECT
+        chart_date,
+        chart_type,
+        country,
+        max(ingested_at) AS last_silver_at
+    FROM music.fact_chart
+    GROUP BY chart_date, chart_type, country
+)
+SELECT
+    b.chart_date,
+    b.chart_type,
+    b.country,
+    b.bronze_payloads,
+    b.bronze_runs,
+    b.last_bronze_at,
+    c.chart_rows,
+    c.features_found_rows,
+    c.features_found_pct,
+    s.last_silver_at,
+    (s.last_silver_at IS NULL OR s.last_silver_at < b.last_bronze_at) AS silver_stale,
+    now() - b.last_bronze_at AS bronze_age
+FROM bronze AS b
+LEFT JOIN silver AS s USING (chart_date, chart_type, country)
+LEFT JOIN music.gold_feature_coverage AS c USING (chart_date, chart_type, country);

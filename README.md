@@ -31,7 +31,7 @@ New Spotify developer apps cannot use Audio Features / Audio Analysis ([Spotify 
 - Spotify enrich = single `/{id}` (batch `?ids=` deferred)
 - Bronze cycle: `run` (Bronze-only). Silver: `build-silver`. Gold: `build-gold` per watermark (not wired into `run`)
 - Later: offline fixtures + C12 feature backfill + BI
-- **Orchestration v2 (specced, not coded yet):** Airflow DAG `spotify_weekly` Option B — see [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md). Soft wire `run`→Silver/Gold **superseded** by DAG. `run` stays Bronze-only.
+- **Orchestration v2 (specced, not coded yet):** Airflow DAG `spotify_weekly` Option B — see [`docs/spec/v2/SPEC_V2.md`](docs/spec/v2/SPEC_V2.md). Soft wire `run`→Silver/Gold **superseded** by DAG. `run` stays Bronze-only.
 
 Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Prefect, and BI dashboards remain **out of MVP / undecided**. Airflow weekly path is **locked in SPEC v2** (not implemented yet).
 
@@ -39,7 +39,7 @@ Daily Top 200 + streams via Charts **`auth/v0`**, cloud warehouse, Prefect, and 
 
 ![Pipeline diagram](architecture/music-pipeline.png)
 
-Editable source: [`architecture/version_1/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) · v2 diagram: [`architecture/version_2/`](architecture/version_2/) · Specs: [`docs/spec/SPEC.md`](docs/spec/SPEC.md) (v1) · [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md) (orchestration)
+Editable source: [`architecture/version_1/music-pipeline.drawio`](architecture/version_1/music-pipeline.drawio) · v2 diagram: [`architecture/version_2/`](architecture/version_2/) · Specs: [`docs/spec/SPEC.md`](docs/spec/SPEC.md) (v1) · [`docs/spec/v2/SPEC_V2.md`](docs/spec/v2/SPEC_V2.md) (orchestration)
 
 ```text
 Charts public/v0 ──► Bronze ──► extract IDs ──┬──► Spotify Web API ──► dim_track / dim_artist
@@ -286,9 +286,9 @@ These are **undecided** — do not treat as product defaults:
 | Path | Contents |
 |------|----------|
 | [`docs/spec/SPEC.md`](docs/spec/SPEC.md) | v1 engineering spec (rules, data model, APIs) |
-| [`docs/spec/SPEC_V2.md`](docs/spec/SPEC_V2.md) | v2 orchestration — Airflow Option B (`spotify_weekly`) |
-| [`docs/spec/DECISION_ORCHESTRATION_V2.md`](docs/spec/DECISION_ORCHESTRATION_V2.md) | Accepted decision record (Assumption #5 + Phase 0 locks) |
-| [`docs/spec/CHECKLIST_SPEC_V2.md`](docs/spec/CHECKLIST_SPEC_V2.md) | Self-check khi tự implement Airflow v2 (Phase 1–7) |
+| [`docs/spec/v2/SPEC_V2.md`](docs/spec/v2/SPEC_V2.md) | v2 orchestration — Airflow Option B (`spotify_weekly`) |
+| [`docs/spec/v2/DECISION_ORCHESTRATION_V2.md`](docs/spec/v2/DECISION_ORCHESTRATION_V2.md) | Accepted decision record (Assumption #5 + Phase 0 locks) |
+| [`docs/spec/v2/CHECKLIST_SPEC_V2.md`](docs/spec/v2/CHECKLIST_SPEC_V2.md) | Self-check khi tự implement Airflow v2 (Phase 1–7) |
 | [`docs/spec/SPEC.md`](docs/spec/SPEC.md) | Full engineering spec (rules, data model, APIs, checklist) |
 | [`docs/spec/DATA_MODEL_LAYERS.md`](docs/spec/explain/DATA_MODEL_LAYERS.md) | Explain `raw_charts` vs `fact_chart` / dims (why no `dim_chart`) |
 | [`docs/spec/CHECKLIST_SPEC_GAPS.md`](docs/spec/CHECKLIST_SPEC_GAPS.md) | SPEC ↔ code gaps (Silver W* / Gold G*) |

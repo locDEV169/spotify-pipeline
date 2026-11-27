@@ -1,6 +1,6 @@
 # Airflow ops (SPEC v2 Phase 3–4)
 
-**DAG:** `spotify_weekly` · **Spec:** [`docs/spec/SPEC_V2.md`](../spec/SPEC_V2.md) · **Q11=A:** Airflow runs in Docker, **not** in default `pyproject` deps.
+**DAG:** `spotify_weekly` · **Spec:** [`docs/spec/v2/SPEC_V2.md`](../spec/v2/SPEC_V2.md) · **Q11=A:** Airflow runs in Docker, **not** in default `pyproject` deps.
 
 ## Prerequisites
 
@@ -70,6 +70,28 @@ Rules:
 - **The Docker host must be running** at Mon 09:00; a missed run is not re-created (`catchup=False`).
 - **No history back-fill:** Charts `public/v0` only serves the live week, so the 8 weeks accumulate one scheduled run at a time. If the Charts live date is not the derived Thursday when the run fires, `bronze` fails with `live chart watermark mismatch` and writes nothing — re-run manually with the live date.
 - **Week catch-up ≠ C12:** week catch-up = more weekly watermarks through this DAG (full chain). C12 feature backfill (re-query ReccoBeats where `features_found=false`) is **not** in this DAG.
+
+## Ops tables (SPEC_V2 §19b)
+
+Apply the DDL **before** deploying a DAG that writes `music.pipeline_runs` (a missing table only logs a warning, tasks still run):
+
+```bash
+python scripts/ddl/apply_music_ddl.py   # from the host; idempotent
+```
+
+Then rebuild the image (`src/` changed) and recreate the container (see **Build and start**; re-unpause the DAG).
+
+```sql
+SELECT * FROM music.ops_pipeline_health ORDER BY chart_date DESC;   -- per watermark: coverage, silver_stale, bronze_age
+SELECT dag_run_id, status, current_task, error_task, error_message, started_at, finished_at
+FROM music.pipeline_runs ORDER BY started_at DESC LIMIT 10;
+```
+
+- One row per DAG run; a retry or **Clear** moves the same row failed → running → success. `summary` holds each task's result and its own `run_id` (layers do not share one id).
+- `failed` is written after the **last** retry only. `error_message` has DB URIs redacted.
+- A row stuck in `running` means the worker was killed or the task was marked success in the UI ("Mark success" bypasses the Ops writes). Clear the task or ignore the row.
+- Ops writes are best-effort: check the task log for `ops pipeline_runs write skipped` warnings if a row is missing.
+- The image installs the app **without `flask`** (only `src/spotify_pipeline/api` uses it; Airflow 2.9.3 pins flask 2.2.5).
 
 ## Stop
 

@@ -10,6 +10,10 @@ most recent Thursday before ``data_interval_end``. Manual runs pass
 ``chart_date`` via conf/params; an explicit value always wins.
 History is not back-filled: Charts ``public/v0`` only serves the live week, so
 weeks accumulate one scheduled run at a time.
+
+Ops (SPEC_V2 §19b): each task records start/result in ``music.pipeline_runs``
+(best-effort, never fails the task); failures are recorded by a task-level
+``on_failure_callback`` after the last retry.
 """
 
 from __future__ import annotations
@@ -37,33 +41,52 @@ def _watermark(context: dict[str, Any]):
     return Watermark.parse(chart_date, params["chart_type"], params["country"])
 
 
+def _tracked(task_id: str, context: dict[str, Any], run, *, final: bool = False) -> None:
+    """Run one library entrypoint and mirror its state into music.pipeline_runs.
+
+    Ops writes are best-effort (never change the task result); a failure that
+    survives all retries is recorded by ``_record_failure``.
+    """
+    from spotify_pipeline.pipeline import ops
+
+    watermark = _watermark(context)
+    dag_id, dag_run_id = context["dag"].dag_id, context["dag_run"].run_id
+    log.info("%s watermark=%s", task_id, watermark.as_tuple())
+    ops.record_start(dag_id, dag_run_id, task_id, watermark)
+    result = run(watermark)
+    log.info("%s done result=%s", task_id, result)
+    ops.record_success(dag_id, dag_run_id, task_id, result, final=final, watermark=watermark)
+
+
+def _record_failure(context: dict[str, Any]) -> None:
+    from spotify_pipeline.pipeline import ops
+
+    exc = context.get("exception")
+    ops.record_failure(
+        context["dag"].dag_id,
+        context["dag_run"].run_id,
+        context["task_instance"].task_id,
+        f"{type(exc).__name__}: {exc}",
+    )
+
+
 def _run_bronze_task(**context: Any) -> None:
     from spotify_pipeline.pipeline.run import run_bronze
 
-    watermark = _watermark(context)
-    log.info("bronze watermark=%s", watermark.as_tuple())
-
     # write_fs=False: Postgres music.raw_* is the SoR; container FS is ephemeral.
-    summary = run_bronze(watermark, write_fs=False)
-    log.info("bronze done summary=%s", summary)
+    _tracked("bronze", context, lambda wm: run_bronze(wm, write_fs=False))
 
 
 def _build_silver_task(**context: Any) -> None:
     from spotify_pipeline.pipeline.silver import build_silver
 
-    watermark = _watermark(context)
-    log.info("build_silver watermark=%s", watermark.as_tuple())
-    result = build_silver(watermark)
-    log.info("build_silver done result=%s", result)
+    _tracked("build_silver", context, build_silver)
 
 
 def _build_gold_task(**context: Any) -> None:
     from spotify_pipeline.pipeline.gold import build_gold
 
-    watermark = _watermark(context)
-    log.info("build_gold watermark=%s", watermark.as_tuple())
-    result = build_gold(watermark)
-    log.info("build_gold done result=%s", result)
+    _tracked("build_gold", context, build_gold, final=True)
 
 
 with DAG(
@@ -76,6 +99,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,  # serial runs: no overlapping API/DB load (P5-08)
     tags=["spotify", "medallion", "option-b"],
+    default_args={"on_failure_callback": _record_failure},
     params={
         "chart_date": "",
         "chart_type": "weekly_top_songs",
